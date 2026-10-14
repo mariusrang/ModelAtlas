@@ -1,0 +1,43 @@
+# --- Secrets: never commit these (course rule: -5 pts per exposed secret) ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+.ipynb_checkpoints/
+
+# --- Data: big raw dumps are downloaded by `make seed`, not versioned ---
+data/raw/
+data/staged/
+data/models/
+# the small sample fixture IS versioned so CI can run without downloads
+!tests/fixtures/**
+
+# --- Neo4j / Docker volumes if mounted locally ---
+neo4j/data/
+neo4j/logs/
+
+# --- Generated reports that are rebuilt by scripts (keep the .md ones) ---
+reports/*.json
+reports/*.parquet
+
+# --- IDE / OS ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini

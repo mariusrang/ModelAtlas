@@ -1,0 +1,13 @@
+[server]
+headless = true
+# Nginx sits in front of Streamlit, so the browser talks to Nginx's origin.
+enableCORS = false
+enableXsrfProtection = true
+
+[browser]
+gatherUsageStats = false
+
+[theme]
+base = "light"
+primaryColor = "#3b5bdb"
+font = "sans serif"
