@@ -9,8 +9,8 @@ jobs:
   unit:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
           cache: pip
@@ -32,8 +32,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: unit
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
       - name: Create .env for CI
@@ -52,13 +52,22 @@ jobs:
             sleep 5
           done
           docker compose ps; docker compose logs --tail=50; exit 1
-      - name: Container health tests
-        env:
-          NEO4J_PASSWORD: ci-password-123
+      - name: Install Python deps
         run: |
           python -m venv .venv
           .venv/bin/pip install -r requirements-dev.txt
-          make test-integration
+      - name: Load the sample graph (make seed-sample)
+        run: make seed-sample
+      - name: Container health + graph integration tests
+        env:
+          NEO4J_PASSWORD: ci-password-123
+        run: make test-integration
+      - name: Upload load report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: load-report-sample
+          path: reports/*_sample.md
       - name: Logs on failure
         if: failure()
         run: docker compose logs --tail=200

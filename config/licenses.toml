@@ -1,0 +1,46 @@
+# License rules used by the license-check feature.
+#
+# Every license id seen in the data becomes a :License node. The fields below
+# are added to the node when the license is listed here; unlisted licenses get
+# family = "unknown", which the license check reports as "needs a human".
+#
+# family:          permissive | copyleft | open-rail | community | non-commercial | other | unknown
+# commercial_use:  true / false / "conditional" (allowed under conditions, e.g. user caps, use policy)
+# requires_attribution, share_alike: booleans
+# url: official text
+#
+# This table is a data file on purpose: the rules are reviewed by a person
+# (see docs/licenses.md), the code only applies them.
+
+[apache-2-0]
+id = "apache-2.0"
+family = "permissive"
+commercial_use = true
+requires_attribution = true
+share_alike = false
+url = "https://www.apache.org/licenses/LICENSE-2.0"
+
+[mit]
+id = "mit"
+family = "permissive"
+commercial_use = true
+requires_attribution = true
+share_alike = false
+url = "https://opensource.org/license/mit"
+
+[llama3-1]
+id = "llama3.1"
+family = "community"
+commercial_use = "conditional"
+requires_attribution = true
+share_alike = false
+url = "https://www.llama.com/llama3_1/license/"
+notes = "Commercial use allowed below 700M monthly active users; derivatives must keep the license and the 'Built with Llama' notice."
+
+[cc-by-nc-4-0]
+id = "cc-by-nc-4.0"
+family = "non-commercial"
+commercial_use = false
+requires_attribution = true
+share_alike = false
+url = "https://creativecommons.org/licenses/by-nc/4.0/"

@@ -2,7 +2,7 @@
 # Works on Linux/macOS and on Windows (Git Bash or any shell with GNU make).
 
 .DEFAULT_GOAL := help
-.PHONY: help venv install run ui env docker-build docker-run docker-down docker-logs ollama-pull data profile \
+.PHONY: help venv install run ui env docker-build docker-run docker-down docker-logs ollama-pull data profile fixture seed seed-sample \
         test test-unit test-integration coverage lint format clean tree
 
 # --- Python paths (the venv layout differs on Windows) ---
@@ -63,8 +63,17 @@ data: ## Download the raw Hugging Face model-card dump (~1.5 GB, only once)
 profile: ## Profile the raw dump -> reports/data_profile.md
 	$(VENV_PY) -m scripts.etl.profile
 
+fixture: ## Rebuild the small test fixture (tests/fixtures/sample_models) from the full dump
+	$(VENV_PY) -m scripts.etl.make_fixture
+
+seed: ## Build the FULL graph in Neo4j: transform + load + validate (~10 min, stack must be up)
+	$(VENV_PY) -m scripts.seed_data
+
+seed-sample: ## Load the small fixture into Neo4j (~1 min, used by CI and the Cypher tests)
+	$(VENV_PY) -m scripts.seed_data --sample
+
 test: ## Run the whole test suite with coverage (integration tests skip if the stack is down)
-	$(VENV_PY) -m pytest --cov=app --cov=ui --cov-report=term-missing --cov-report=xml $(PYTEST_ARGS)
+	$(VENV_PY) -m pytest --cov=app --cov=ui --cov=scripts --cov-report=term-missing --cov-report=xml $(PYTEST_ARGS)
 
 test-unit: ## Run only fast tests (no Neo4j needed)
 	$(VENV_PY) -m pytest -m "not integration"
@@ -73,7 +82,7 @@ test-integration: ## Run tests that need the running stack (make docker-run firs
 	$(VENV_PY) -m pytest -m integration
 
 coverage: ## Build an HTML coverage report in htmlcov/
-	$(VENV_PY) -m pytest -m "not integration" --cov=app --cov=ui --cov-report=html
+	$(VENV_PY) -m pytest -m "not integration" --cov=app --cov=ui --cov=scripts --cov-report=html
 	@echo "open htmlcov/index.html"
 
 lint: ## Check formatting and run pylint with the course .pylintrc (must be >= 9.5)

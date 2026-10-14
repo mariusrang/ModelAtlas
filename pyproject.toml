@@ -21,7 +21,7 @@ markers = [
 ]
 
 [tool.coverage.run]
-source = ["app"]
+source = ["app", "ui", "scripts"]
 omit = ["app/__main__.py"]
 
 [tool.coverage.report]
