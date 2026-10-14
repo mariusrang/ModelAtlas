@@ -2,6 +2,6 @@
 
 Versioned configuration that is data, not code:
 
-- `sources.yaml`: pinned dataset revisions (added in the ETL step)
-- `licenses.yaml`: license normalisation and rules (added in the ETL step)
-- `scope.yaml`: which models we keep (added in the ETL step)
+- `sources.toml`: where each raw dataset comes from and which revision we pin
+- `licenses.toml`: license normalisation and rules (added in the ETL step)
+- `scope.toml`: which models we keep in the graph (added in the ETL step)

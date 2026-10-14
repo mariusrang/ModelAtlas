@@ -8,3 +8,8 @@ neo4j==5.28.6
 httpx==0.28.1
 requests==2.34.2
 streamlit==1.65.0
+# data / ETL
+python-dotenv==1.2.4
+huggingface_hub==2.2.0
+pyarrow==25.0.1
+pandas==3.0.6
