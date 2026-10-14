@@ -1,0 +1,41 @@
+# Which models go into the graph, and which noise we drop.
+# Every number here comes from reports/data_profile.md (see the comments).
+
+[keep]
+# 66% of the 861k models have 0 downloads. "downloads >= 50 or likes >= 1"
+# keeps ~146k models (~156k once we add their ancestors back), which fits a
+# 32 GB laptop and still contains every model anyone actually uses.
+min_downloads = 50
+min_likes = 1
+# Ancestors of a kept model are always added back, even if unpopular,
+# otherwise family trees and license checks would have holes.
+add_ancestors = true
+
+[drop]
+# ~98.6k auto-generated "blockassist" / swarm checkpoints (11% of the dump).
+spam_tags = ["blockassist", "gensyn-blockassist", "gensyn", "rl-swarm", "genrl-swarm"]
+# arXiv 1910.09700 ("Quantifying the Carbon Emissions of ML") is cited by 126k
+# models only because it sits in the default model-card template: it is not a
+# real citation, so we don't create CITES edges for it.
+template_papers = ["1910.09700"]
+# Dataset tags that are not datasets ("custom") or are local files.
+fake_datasets = ["custom", "none", "private", "local"]
+fake_dataset_suffixes = [".json", ".jsonl", ".csv", ".parquet", ".txt", ".tsv", ".arrow"]
+
+[architectures]
+# Hub tags that are model architectures (the `model_type` in config.json).
+# Only these become Architecture nodes; other tags stay out of the graph.
+known = [
+  "llama", "mistral", "mixtral", "qwen2", "qwen2_moe", "qwen2_vl", "qwen2_5_vl", "qwen3", "qwen3_moe", "qwen3_5",
+  "gemma", "gemma2", "gemma3", "gemma3n", "gemma4", "phi", "phi3", "phi4", "falcon", "gpt2", "gpt_neox", "gptj",
+  "opt", "bloom", "mpt", "starcoder2", "deepseek_v2", "deepseek_v3", "olmo", "olmo2", "cohere", "granite",
+  "stablelm", "internlm2", "glm4", "smollm3", "lfm2", "exaone",
+  "bert", "roberta", "xlm-roberta", "distilbert", "deberta", "deberta-v2", "electra", "albert", "modernbert",
+  "mpnet", "t5", "mt5", "bart", "marian", "pegasus",
+  "whisper", "wav2vec2", "hubert", "clip", "siglip", "vit", "deit", "swin", "convnext", "resnet", "detr",
+  "llava", "idefics3", "paligemma", "blip", "stable-diffusion", "flux",
+]
+
+[formats]
+# Weight formats worth knowing for a client (can it run on CPU? on a Mac?).
+known = ["gguf", "mlx", "onnx", "safetensors", "awq", "gptq", "exl2", "exl3", "bitsandbytes", "openvino"]

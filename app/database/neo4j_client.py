@@ -18,6 +18,9 @@ from app.config import Settings
 from app.errors import ServiceUnavailableError
 
 logger = logging.getLogger(__name__)
+# The server sends an INFO notification for every "IF NOT EXISTS" that had nothing
+# to do; keep only real warnings in our logs.
+logging.getLogger("neo4j.notifications").setLevel(logging.WARNING)
 
 
 class Neo4jClient:
