@@ -22,6 +22,7 @@ import pandas as pd
 
 from app.database.neo4j_client import Neo4jClient
 from app.database.schema import apply_schema
+from app.domain import LINEAGE_TYPES
 from scripts.etl.sources import ROOT
 
 logger = logging.getLogger("modelatlas.load")
@@ -47,7 +48,6 @@ LINKS = {
     "language": Link("Language", "code", "SUPPORTS"),
     "architecture": Link("Architecture", "id", "HAS_ARCHITECTURE"),
 }
-LINEAGE_TYPES = ("FINETUNED_FROM", "ADAPTER_OF", "QUANTIZED_FROM", "MERGED_FROM")
 
 MODEL_QUERY = """
 UNWIND $rows AS row

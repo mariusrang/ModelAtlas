@@ -14,8 +14,8 @@ from neo4j.exceptions import AuthError, ServiceUnavailable
 from app.config import Settings
 from app.database.neo4j_client import Neo4jClient
 from app.database.schema import CONSTRAINTS
+from app.domain import LINEAGE_TYPES
 from app.errors import ServiceUnavailableError
-from scripts.etl.load import LINEAGE_TYPES
 
 pytestmark = pytest.mark.integration
 LINEAGE = "|".join(LINEAGE_TYPES)

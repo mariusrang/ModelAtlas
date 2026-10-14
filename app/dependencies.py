@@ -7,6 +7,7 @@ from fastapi import Depends, Header, Request
 from app.config import Settings, get_settings
 from app.database.neo4j_client import Neo4jClient
 from app.errors import UnauthorizedError
+from app.repositories.graph_repository import GraphRepository
 
 
 def get_db(request: Request) -> Neo4jClient:
@@ -14,9 +15,19 @@ def get_db(request: Request) -> Neo4jClient:
     return request.app.state.db
 
 
+def get_app_settings(request: Request, default: Settings = Depends(get_settings)) -> Settings:
+    """Settings the app was built with (`create_app(settings=...)`), else the global ones."""
+    return getattr(request.app.state, "settings", None) or default
+
+
+def get_repository(db: Neo4jClient = Depends(get_db)) -> GraphRepository:
+    """One repository per request; it only holds a reference to the shared client."""
+    return GraphRepository(db)
+
+
 def require_admin_key(
     x_api_key: str | None = Header(default=None, description="Admin API key"),
-    settings: Settings = Depends(get_settings),
+    settings: Settings = Depends(get_app_settings),
 ) -> None:
     """Protect sensitive endpoints (re-ingest, retrain...) with an API key.
 
