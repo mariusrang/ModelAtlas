@@ -31,7 +31,8 @@ We never present a guess as a fact.
 | Part | Status |
 | --- | --- |
 | Repo skeleton, Docker stack, CI, `/health` | done |
-| Data profiling + ETL | in progress |
+| Data download + profiling | done |
+| ETL (transform + load into Neo4j) | in progress |
 | Graph queries + API endpoints | planned |
 | GDS + parent-model prediction | planned |
 | LangGraph agent + guardrails | planned |
@@ -59,6 +60,22 @@ Then open:
 | Web app | http://localhost |
 | API docs (Swagger) | http://localhost/api/docs |
 | Neo4j Browser | http://localhost:7474 |
+
+---
+
+## Data
+
+| Source | What we use it for | Size |
+| --- | --- | --- |
+| [librarian-bots/model_cards_with_metadata](https://huggingface.co/datasets/librarian-bots/model_cards_with_metadata) | Every public model on the Hub: id, author, downloads, likes, tags (license, parents, datasets, papers, languages), task, card text | ~817k rows, 1.5 GB Parquet |
+| [librarian-bots/dataset_cards_with_metadata](https://huggingface.co/datasets/librarian-bots/dataset_cards_with_metadata) | Dataset nodes (license, languages) | Parquet |
+
+Both are free and need no API key. `make data` downloads them and writes a `manifest.json` with the exact
+commit hash and SHA-256 of every file, so the graph can always be rebuilt from the same data version.
+`make profile` then produces [`reports/data_profile.md`](reports/data_profile.md): the numbers behind our
+modeling and scoping choices.
+
+> On Windows, put `MODELATLAS_DATA_DIR=C:\modelatlas-data` in `.env` so the 1.5 GB download is not synced by OneDrive.
 
 ---
 
@@ -91,6 +108,8 @@ guardrails and evidence labels live. (Diagram coming with the graph model PR.)
 | `make docker-run` | Build and start the whole stack |
 | `make docker-down` | Stop the stack (data is kept) |
 | `make ollama-pull` | Download the local LLM into the Ollama container |
+| `make data` | Download the raw Hugging Face model-card dump (~1.5 GB, once) |
+| `make profile` | Profile the raw dump into `reports/data_profile.md` |
 | `make test` | All tests + coverage (integration tests skip if the stack is down) |
 | `make test-unit` | Fast tests only, no Docker needed |
 | `make test-integration` | Tests against the running stack |

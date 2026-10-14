@@ -9,7 +9,7 @@ import streamlit as st
 
 from ui.api_client import ApiClient
 
-st.set_page_config(page_title="ModelAtlas", page_icon="🧭", layout="wide")
+st.set_page_config(page_title="ModelAtlas", page_icon=":material/explore:", layout="wide")
 
 st.title("ModelAtlas")
 st.caption("A knowledge graph of the open AI model ecosystem, with an agent that shows its sources.")
