@@ -2,7 +2,7 @@
 # Works on Linux/macOS and on Windows (Git Bash or any shell with GNU make).
 
 .DEFAULT_GOAL := help
-.PHONY: help venv install run ui env docker-build docker-run docker-down docker-logs ollama-pull \
+.PHONY: help venv install run ui env docker-build docker-run docker-down docker-logs ollama-pull data profile \
         test test-unit test-integration coverage lint format clean tree
 
 # --- Python paths (the venv layout differs on Windows) ---
@@ -56,6 +56,12 @@ docker-logs: ## Follow the logs of every service
 
 ollama-pull: ## Download the local LLM into the Ollama container (once, ~4.7 GB)
 	docker compose exec ollama ollama pull $(OLLAMA_MODEL)
+
+data: ## Download the raw Hugging Face model-card dump (~1.5 GB, only once)
+	$(VENV_PY) -m scripts.etl.extract model_cards
+
+profile: ## Profile the raw dump -> reports/data_profile.md
+	$(VENV_PY) -m scripts.etl.profile
 
 test: ## Run the whole test suite with coverage (integration tests skip if the stack is down)
 	$(VENV_PY) -m pytest --cov=app --cov=ui --cov-report=term-missing --cov-report=xml $(PYTEST_ARGS)

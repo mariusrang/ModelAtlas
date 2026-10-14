@@ -1,0 +1,22 @@
+# Data sources for ModelAtlas.
+#
+# `revision = "main"` means "latest" on the first download. `make data` then
+# writes the exact commit hash it got into data/raw/<source>/manifest.json, and
+# we copy that hash here so everyone (and the prof) rebuilds the same graph.
+# TOML instead of YAML because Python reads it with the standard library (tomllib).
+
+[model_cards]
+repo_id = "librarian-bots/model_cards_with_metadata"
+repo_type = "dataset"
+revision = "main"
+allow_patterns = ["*.parquet"]
+description = "Every public model card on the Hugging Face Hub + metadata (author, downloads, likes, tags, pipeline tag, dates)"
+license_note = "Model cards are written by each model's uploader; the dataset is published by Hugging Face's librarian-bots."
+
+[dataset_cards]
+repo_id = "librarian-bots/dataset_cards_with_metadata"
+repo_type = "dataset"
+revision = "main"
+allow_patterns = ["*.parquet"]
+description = "Every public dataset card on the Hub, used for Dataset nodes (license, languages)"
+license_note = "Dataset cards are written by each dataset's uploader."
