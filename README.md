@@ -1,1 +1,132 @@
 # ModelAtlas
+
+[![lint](https://github.com/mariusrang/ModelAtlas/actions/workflows/lint.yml/badge.svg)](https://github.com/mariusrang/ModelAtlas/actions/workflows/lint.yml)
+[![tests](https://github.com/mariusrang/ModelAtlas/actions/workflows/test.yml/badge.svg)](https://github.com/mariusrang/ModelAtlas/actions/workflows/test.yml)
+[![docker](https://github.com/mariusrang/ModelAtlas/actions/workflows/docker.yml/badge.svg)](https://github.com/mariusrang/ModelAtlas/actions/workflows/docker.yml)
+![pylint](https://img.shields.io/badge/pylint-10.00-brightgreen)
+![python](https://img.shields.io/badge/python-3.11%2B-blue)
+
+**A knowledge graph of the open AI model ecosystem, with an agent that always shows its sources.**
+
+Hugging Face hosts hundreds of thousands of models, and most of them are built on top of other models:
+a fine-tune of a fine-tune, a quantized copy, a merge of three models... Each one has a license, training
+datasets, papers and benchmark scores. ModelAtlas puts all of that in a Neo4j graph so we can answer the
+questions an AI pre-sales / solutions engineer gets every day:
+
+- *Where does this model really come from?* (lineage up to the foundation model)
+- *Can my client use it commercially?* (every license on every ancestor path)
+- *Which French-capable, < 8B, commercially usable model should we start from?*
+- *This GGUF has no parent listed: what is it probably based on?* (ML link prediction)
+
+Every fact we return is labelled `VERIFIED` (declared in a model card), `DERIVED` (one of our rules applied
+to verified data) or `HYPOTHESIS` (guessed by our ML model or the LLM, always with a confidence score).
+We never present a guess as a fact.
+
+> Course project for *Knowledge Graphs & Graph Data* (AIDAMS 3A), level 3+ (agentic / GraphRAG).
+
+---
+
+## Project status
+
+| Part | Status |
+| --- | --- |
+| Repo skeleton, Docker stack, CI, `/health` | done |
+| Data profiling + ETL | in progress |
+| Graph queries + API endpoints | planned |
+| GDS + parent-model prediction | planned |
+| LangGraph agent + guardrails | planned |
+| Streamlit UI | skeleton |
+
+---
+
+## Quick start
+
+Requirements: Docker Desktop, Python 3.11+, GNU `make` (on Windows: Git Bash, or `choco install make`).
+No API key is needed: the LLM runs locally with Ollama.
+
+```bash
+git clone https://github.com/mariusrang/ModelAtlas.git
+cd ModelAtlas
+make env           # creates .env from .env.example -> edit the two passwords
+make docker-run    # builds and starts Neo4j, Ollama, API, UI and Nginx
+make ollama-pull   # first time only: downloads the local LLM (~4.7 GB)
+```
+
+Then open:
+
+| What | URL |
+| --- | --- |
+| Web app | http://localhost |
+| API docs (Swagger) | http://localhost/api/docs |
+| Neo4j Browser | http://localhost:7474 |
+
+---
+
+## Architecture
+
+Six services run in `docker compose`; only Nginx is published on the network.
+
+| Service | Image | Port | Role |
+| --- | --- | --- | --- |
+| `nginx` | `nginx:1.27-alpine` | 80 (public) | Reverse proxy: `/api` → API, `/` → UI, rate limit on the agent |
+| `api` | `docker/api.Dockerfile` | 8000 (internal) | FastAPI, graph queries, agent, guardrails |
+| `ui` | `docker/ui.Dockerfile` | 8501 (internal) | Streamlit web app |
+| `neo4j` | `neo4j:5.26-community` + APOC + GDS | 7474 / 7687 (localhost only) | The graph |
+| `ollama` | `ollama/ollama` | 11434 (localhost only) | Local LLM, no API key |
+
+The UI never talks to Neo4j directly: every query goes through the API, which is where validation,
+guardrails and evidence labels live. (Diagram coming with the graph model PR.)
+
+---
+
+## Makefile
+
+| Command | What it does |
+| --- | --- |
+| `make help` | List every command |
+| `make install` | Create `.venv` and install dependencies |
+| `make env` | Create `.env` from `.env.example` |
+| `make run` | Run the API locally with auto-reload (port 8000) |
+| `make ui` | Run the Streamlit app locally (port 8501) |
+| `make docker-run` | Build and start the whole stack |
+| `make docker-down` | Stop the stack (data is kept) |
+| `make ollama-pull` | Download the local LLM into the Ollama container |
+| `make test` | All tests + coverage (integration tests skip if the stack is down) |
+| `make test-unit` | Fast tests only, no Docker needed |
+| `make test-integration` | Tests against the running stack |
+| `make lint` | black + isort + pylint with the course `.pylintrc` (fails under 9.5) |
+| `make format` | Auto-format the code |
+| `make clean` | Remove caches and coverage files |
+| `make tree` | Show the project tree |
+
+---
+
+## Project structure
+
+```text
+app/            FastAPI app (routers -> services -> repositories -> Neo4j)
+ui/             Streamlit app
+scripts/        ETL, training, benchmarks, Makefile helpers
+tests/          unit/, api/, health/ (+ cypher/ and agent/ later)
+docker/         Dockerfiles and Nginx config
+config/         versioned config (data sources, license rules, scope)
+.github/        CI workflows, PR template
+```
+
+---
+
+## Team
+
+| Member | GitHub |
+| --- | --- |
+| Marius Rang (lead) | [@mariusrang](https://github.com/mariusrang) |
+| Ylias Guetari | [@ylguet](https://github.com/ylguet) |
+| Lucas Magret Delord | [@Lucasmd9](https://github.com/Lucasmd9) |
+
+---
+
+## Disclaimer
+
+ModelAtlas is a student project for educational purposes. License analysis is informational only and is
+**not legal advice**. Model metadata on Hugging Face is self-declared by uploaders and can be wrong; we show
+where every fact comes from so you can check it.

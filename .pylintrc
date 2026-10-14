@@ -1,0 +1,247 @@
+[MASTER]
+# A comma-separated list of package or module names from where C extensions may
+# be loaded. Extensions are loading into the active Python interpreter and may
+# run arbitrary code.
+extension-pkg-whitelist=
+
+# Add files or directories to the blacklist. They should be base names, not
+# paths.
+ignore=CVS,LiLt, MPLT,pb_interfaces
+
+# Add files or directories matching the regex patterns to the blacklist. The
+# regex matches against base names, not paths.
+ignore-patterns=
+
+# Use multiple processes to speed up Pylint. Specifying 0 will auto-detect the
+# number of processors available to use.
+jobs=0
+
+# Control the amount of potential inferred values when inferring a single
+# object. This can help the performance when dealing with large functions or
+# complex, nested conditions.
+limit-inference-results=100
+
+# List of plugins (as comma separated values of python module names) to load,
+# usually to register additional checkers.
+load-plugins=
+
+# Pickle collected data for later comparisons.
+persistent=yes
+
+# When enabled, pylint would attempt to guess common misconfiguration and emit
+# user-friendly hints instead of false-positive error messages.
+# NOTE (ModelAtlas): this option was removed in pylint 4.0 and now raises
+# E0015 unrecognized-option, so we keep it commented out. Rest of the file is
+# the course template, unchanged.
+# suggestion-mode=yes
+
+# Allow loading of arbitrary C extensions. Extensions are imported into the
+# active Python interpreter and may run arbitrary code.
+unsafe-load-any-extension=no
+
+
+[MESSAGES CONTROL]
+
+# Only show warnings with the listed confidence levels. Leave empty to show
+# all. Valid levels: HIGH, INFERENCE, INFERENCE_FAILURE, UNDEFINED.
+confidence=
+
+# Disable the message, report, category or checker with the given id(s).
+disable=missing-module-docstring,
+        missing-class-docstring,
+        missing-function-docstring,
+        too-few-public-methods,
+        logging-fstring-interpolation,
+        duplicate-code,
+        no-member,
+        cell-var-from-loop,
+        undefined-loop-variable,
+        attribute-defined-outside-init,
+        protected-access,
+        wrong-import-order,
+
+# Enable the message, report, category or checker with the given id(s).
+enable=c-extension-no-member, useless-suppression
+
+
+[REPORTS]
+
+# Python expression which should return a score less than or equal to 10.
+evaluation=10.0 - ((float(5 * error + warning + refactor + convention) / statement) * 10)
+
+# Set the output format.
+output-format=colorized
+
+# Tells whether to display a full report or only the messages.
+reports=yes
+
+# Activate the evaluation score.
+score=yes
+
+
+[REFACTORING]
+
+# Maximum number of nested blocks for function / method body
+max-nested-blocks=5
+
+# Complete name of functions that never returns.
+never-returning-functions=sys.exit
+
+
+[LOGGING]
+
+# Format style used to check logging format string.
+logging-format-style=new
+
+# Logging modules to check that the string format arguments are in logging
+# function parameter format.
+logging-modules=logging
+
+
+[SPELLING]
+
+max-spelling-suggestions=4
+spelling-dict=
+spelling-ignore-words=
+spelling-private-dict-file=
+spelling-store-unknown-words=no
+
+
+[MISCELLANEOUS]
+
+# List of note tags to take in consideration, separated by a comma.
+notes=FIXME,
+      XXX,
+      TODO
+
+
+[TYPECHECK]
+
+contextmanager-decorators=contextlib.contextmanager
+generated-members=
+ignore-mixin-members=yes
+ignore-none=yes
+ignore-on-opaque-inference=yes
+ignored-classes=optparse.Values,thread._local,_thread._local
+ignored-modules=pipeline_core.pb_interfaces
+missing-member-hint=yes
+missing-member-hint-distance=1
+missing-member-max-choices=1
+signature-mutators=
+
+
+[VARIABLES]
+
+additional-builtins=
+allow-global-unused-variables=yes
+callbacks=cb_,
+          _cb
+dummy-variables-rgx=_+$|(_[a-zA-Z0-9_]*[a-zA-Z0-9]+?$)|dummy|^ignored_|^unused_
+ignored-argument-names=_.*|^ignored_|^unused_
+init-import=no
+redefining-builtins-modules=six.moves,past.builtins,future.builtins,builtins,io
+
+
+[FORMAT]
+
+expected-line-ending-format=LF
+ignore-long-lines=^\s*(# )?<?https?://\S+>?$
+indent-after-paren=4
+indent-string='    '
+max-line-length=120
+max-module-lines=1000
+single-line-class-stmt=no
+single-line-if-stmt=no
+
+
+[SIMILARITIES]
+
+ignore-comments=yes
+ignore-docstrings=yes
+ignore-imports=yes
+min-similarity-lines=4
+
+
+[BASIC]
+
+argument-naming-style=snake_case
+attr-rgx=(([a-z][a-z0-9_]{2,30})|(_[a-z0-9_]*)|(id))$
+bad-names=foo,
+          bar,
+          baz,
+          toto,
+          tutu,
+          tata
+class-attribute-rgx=([A-Za-z_][A-Za-z0-9_]{2,30}|(__.*__)|(id))$
+class-naming-style=PascalCase
+const-naming-style=UPPER_CASE
+docstring-min-length=-1
+function-naming-style=snake_case
+good-names=i,
+           j,
+           k,
+           ex,
+           Run,
+           x,
+           y,
+           x0, x1, y0, y1, w, h,
+           k,
+           v,
+           df,
+           _
+include-naming-hint=no
+inlinevar-naming-style=snake_case
+method-naming-style=snake_case
+module-naming-style=snake_case
+name-group=
+no-docstring-rgx=^_
+property-classes=abc.abstractproperty
+variable-naming-style=snake_case
+
+
+[STRING]
+
+check-str-concat-over-line-jumps=yes
+
+
+[IMPORTS]
+
+allow-any-import-level=tensorflow, keras
+allow-wildcard-with-all=no
+analyse-fallback-blocks=no
+deprecated-modules=optparse,tkinter.tix
+ext-import-graph=
+import-graph=
+int-import-graph=
+known-standard-library=
+known-third-party=enchant
+preferred-modules=
+
+
+[CLASSES]
+
+defining-attr-methods=__init__,
+                      __new__,
+                      setUp,
+                      __post_init__
+exclude-protected=_asdict,
+                  _fields,
+                  _replace,
+                  _source,
+                  _make
+valid-classmethod-first-arg=cls
+valid-metaclass-classmethod-first-arg=cls
+
+
+[DESIGN]
+
+max-args=5
+max-attributes=10
+max-bool-expr=5
+max-branches=12
+max-locals=15
+max-parents=7
+max-public-methods=20
+max-returns=6
+max-statements=50
+min-public-methods=1

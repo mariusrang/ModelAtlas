@@ -1,0 +1,10 @@
+# Runtime dependencies (API, ETL, agent, UI).
+# Versions are pinned so `make install` gives everyone the same environment.
+fastapi==0.143.1
+uvicorn[standard]==0.54.0
+pydantic==2.14.1
+pydantic-settings==2.16.0
+neo4j==5.28.6
+httpx==0.28.1
+requests==2.34.2
+streamlit==1.65.0

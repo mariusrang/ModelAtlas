@@ -1,0 +1,8 @@
+# Keep LF line endings everywhere, even on Windows checkouts.
+# The course .pylintrc expects LF (expected-line-ending-format=LF), and the
+# Makefile and shell scripts break with CRLF.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.pdf binary
+*.parquet binary

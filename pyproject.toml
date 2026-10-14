@@ -1,0 +1,29 @@
+[project]
+name = "modelatlas"
+version = "0.1.0"
+description = "Knowledge graph of the open AI model ecosystem, with a LangGraph agent on top."
+requires-python = ">=3.11"
+authors = [{ name = "Marius Rang" }, { name = "Ylias Guetari" }, { name = "Lucas Magret Delord" }]
+
+[tool.black]
+line-length = 120
+target-version = ["py311"]
+
+[tool.isort]
+profile = "black"
+line_length = 120
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+markers = [
+    "integration: needs a running Neo4j (started by docker compose or testcontainers)",
+]
+
+[tool.coverage.run]
+source = ["app"]
+omit = ["app/__main__.py"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
