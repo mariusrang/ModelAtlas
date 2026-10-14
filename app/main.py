@@ -15,7 +15,7 @@ from app import __version__
 from app.config import Settings, get_settings
 from app.database.neo4j_client import Neo4jClient
 from app.errors import register_error_handlers
-from app.routers import health
+from app.routers import graph, health, models
 
 logger = logging.getLogger("modelatlas")
 
@@ -63,8 +63,11 @@ def create_app(settings: Settings | None = None, db: Neo4jClient | None = None) 
         logger.info(f"{request.method} {request.url.path} -> {response.status_code} ({elapsed_ms:.1f} ms)")
         return response
 
+    application.state.settings = settings
     register_error_handlers(application)
     application.include_router(health.router)
+    application.include_router(models.router)
+    application.include_router(graph.router)
     return application
 
 

@@ -33,7 +33,7 @@ We never present a guess as a fact.
 | Repo skeleton, Docker stack, CI, `/health` | done |
 | Data download + profiling | done |
 | ETL (transform + load into Neo4j) | done |
-| Graph queries + API endpoints | in progress |
+| Graph queries + API endpoints | done |
 | GDS + parent-model prediction | planned |
 | LangGraph agent + guardrails | planned |
 | Streamlit UI | skeleton |
@@ -117,6 +117,50 @@ with the query each one serves. Full diagram and modeling rationale: coming in `
 
 ---
 
+## API
+
+Interactive docs (Swagger): <http://localhost/api/docs> once the stack is up. Every response says how far
+you can trust it with an `evidence` field: `VERIFIED` (declared in a model card), `DERIVED` (our rule
+applied to verified facts) or `HYPOTHESIS` (ML/LLM guess, later steps).
+
+| Endpoint | What it answers | Evidence |
+| --- | --- | --- |
+| `GET /health` | Is the API up, does Neo4j answer? | - |
+| `GET /stats` | How big is the graph? | VERIFIED |
+| `GET /models/search?q=mistral 7b` | Fulltext search on id and author, popular models first | VERIFIED |
+| `GET /models/{id}` | Model page: publisher, license, datasets, papers, parents, lineage metrics | VERIFIED + DERIVED |
+| `GET /models/{id}/lineage?depth=4` | Every path from the model up to its foundation model(s) | VERIFIED |
+| `GET /models/{id}/descendants?relation=quantized&limit=20` | Models derived from it, keyset-paginated (`next_cursor`) | VERIFIED |
+| `GET /models/{id}/license-check` | Can a company use it commercially, given **every ancestor's** license? | DERIVED |
+| `GET /connection?a=...&b=...` | Closest common ancestor, shortest path, shared datasets/papers | DERIVED |
+| `POST /recommend` | Shortlist for a client brief (task, size, language, commercial use) | DERIVED |
+| `GET /organizations/{id}/footprint` | Who builds on an organization's models? | DERIVED |
+
+Model ids keep their slash (`/models/mistralai/Mistral-7B-v0.1/lineage`). Some examples (from cmd):
+
+```bat
+curl "http://localhost/api/models/search?q=mistral%207b&limit=3"
+curl "http://localhost/api/models/mistralai/Mistral-7B-v0.1/descendants?depth=1&relation=quantized&limit=5"
+curl "http://localhost/api/models/TheBloke/Mistral-7B-Instruct-v0.2-GGUF/license-check"
+curl "http://localhost/api/connection?a=HuggingFaceH4/zephyr-7b-beta&b=mistralai/Mistral-7B-Instruct-v0.2"
+curl -X POST "http://localhost/api/recommend" -H "Content-Type: application/json" ^
+     -d "{\"task\": \"text-generation\", \"max_params_b\": 8, \"commercial_use\": true, \"limit\": 5}"
+```
+
+Design choices, briefly:
+
+- **Layers**: routers (HTTP only) -> services (rules, evidence labels) -> repository -> one `.cypher` file per
+  query in [`app/queries/`](app/queries/README.md). Cypher stays readable and can be `PROFILE`d in Neo4j Browser.
+- **Safe by construction**: values are always `$parameters`; the search text is rebuilt word by word before it
+  reaches Lucene; every variable-length pattern is bounded (`MAX_TRAVERSAL_DEPTH`, default 6, 400 above it);
+  reads run in a READ session with a 10 s timeout.
+- **License rule** (fail-safe): the verdict is the most restrictive status over the model **and all its ancestors**,
+  since a fine-tune can't drop its parent's restrictions. Unknown or missing licenses give `needs_review`, never
+  `ok`. Rules live in [`config/licenses.toml`](config/licenses.toml). Informational only, not legal advice.
+- **Pagination**: keyset on `(downloads, id)` instead of `SKIP`, so page 50 costs the same as page 1.
+
+---
+
 ## Architecture
 
 Six services run in `docker compose`; only Nginx is published on the network.
@@ -167,7 +211,7 @@ guardrails and evidence labels live. (Diagram coming with the graph model PR.)
 app/            FastAPI app (routers -> services -> repositories -> Neo4j)
 ui/             Streamlit app
 scripts/        ETL, training, benchmarks, Makefile helpers
-tests/          unit/, api/, health/ (+ cypher/ and agent/ later)
+tests/          unit/, api/, health/, integration/ (+ agent/ later)
 docker/         Dockerfiles and Nginx config
 config/         versioned config (data sources, license rules, scope)
 .github/        CI workflows, PR template

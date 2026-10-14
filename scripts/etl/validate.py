@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 
 from app.database.neo4j_client import Neo4jClient
 from app.database.schema import CONSTRAINTS
-from scripts.etl.load import LINEAGE_TYPES
+from app.domain import LINEAGE_TYPES
 
 logger = logging.getLogger("modelatlas.validate")
 LINEAGE = "|".join(LINEAGE_TYPES)
