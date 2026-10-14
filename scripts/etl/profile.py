@@ -21,57 +21,14 @@ from collections import Counter
 from pathlib import Path
 
 import pandas as pd
-import pyarrow.compute as pc
-import pyarrow.dataset as ds
 
+from scripts.etl.raw import add_parsed_tags, load_metadata
 from scripts.etl.sources import RAW_DIR, REPORTS_DIR
-from scripts.etl.tags import estimate_params_billions, parse_tags
 
 logger = logging.getLogger("modelatlas.profile")
 
-META_COLUMNS = ["modelId", "author", "downloads", "likes", "library_name", "tags", "pipeline_tag", "createdAt"]
-# Auto-generated card text that says nothing about the model.
-TEMPLATE_CARD_MARKER = "This is the model card of a \U0001f917 transformers model that has been pushed on the Hub"
 DOWNLOAD_THRESHOLDS = (1, 10, 50, 100, 1000, 10000)
 TOP_N = 20
-
-
-def load_metadata(raw_dir: Path) -> pd.DataFrame:
-    """Load every column except the (huge) card text, plus card length stats.
-
-    The card text is ~1.5 GB, so we stream it batch by batch and only keep its
-    length and whether it is the empty auto-generated template.
-    """
-    # Only the Parquet files: the folder also holds manifest.json and the
-    # huggingface_hub download cache (.cache/), which are not data.
-    files = sorted(str(p) for p in raw_dir.rglob("*.parquet") if ".cache" not in p.parts)
-    if not files:
-        raise FileNotFoundError(f"no .parquet files under {raw_dir}, run `make data` first")
-    dataset = ds.dataset(files, format="parquet")
-    frames = []
-    for batch in dataset.to_batches(columns=[*META_COLUMNS, "card"], batch_size=50_000):
-        card = batch.column("card")
-        frame = batch.select(META_COLUMNS).to_pandas()
-        frame["card_length"] = pc.utf8_length(card).to_numpy(zero_copy_only=False)
-        frame["card_is_template"] = pc.match_substring(card, TEMPLATE_CARD_MARKER).to_numpy(zero_copy_only=False)
-        frames.append(frame)
-    df = pd.concat(frames, ignore_index=True)
-    df["downloads"] = df["downloads"].fillna(0).astype("int64")
-    df["likes"] = df["likes"].fillna(0).astype("int64")
-    return df
-
-
-def add_parsed_tags(df: pd.DataFrame) -> pd.DataFrame:
-    """Add one column per tag family (license, parents, datasets...)."""
-    parsed = [parse_tags(list(tags) if tags is not None else []) for tags in df["tags"]]
-    df["license"] = [p.license for p in parsed]
-    df["parents"] = [p.parents for p in parsed]
-    df["datasets"] = [p.datasets for p in parsed]
-    df["papers"] = [p.papers for p in parsed]
-    df["languages"] = [p.languages for p in parsed]
-    df["other_tags"] = [p.other for p in parsed]
-    df["params_b"] = [estimate_params_billions(model_id) for model_id in df["modelId"]]
-    return df
 
 
 def _top(counter: Counter, n: int = TOP_N) -> list[dict]:

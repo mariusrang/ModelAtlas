@@ -32,8 +32,8 @@ We never present a guess as a fact.
 | --- | --- |
 | Repo skeleton, Docker stack, CI, `/health` | done |
 | Data download + profiling | done |
-| ETL (transform + load into Neo4j) | in progress |
-| Graph queries + API endpoints | planned |
+| ETL (transform + load into Neo4j) | done |
+| Graph queries + API endpoints | in progress |
 | GDS + parent-model prediction | planned |
 | LangGraph agent + guardrails | planned |
 | Streamlit UI | skeleton |
@@ -75,7 +75,45 @@ commit hash and SHA-256 of every file, so the graph can always be rebuilt from t
 `make profile` then produces [`reports/data_profile.md`](reports/data_profile.md): the numbers behind our
 modeling and scoping choices.
 
+### From raw dump to graph
+
+```bash
+make data          # download (once)
+make profile       # numbers behind every modeling decision -> reports/data_profile.md
+make seed          # transform + load + validate -> reports/etl_report.md, reports/load_report.md
+```
+
+The transform applies rules from [`config/scope.toml`](config/scope.toml), each one backed by the profile:
+
+| Rule | Why (from the profile) |
+| --- | --- |
+| keep models with >= 50 downloads or >= 1 like | 66% of the 861k models have 0 downloads; this keeps ~146k real models |
+| add back every ancestor of a kept model | otherwise family trees and license checks would have holes |
+| drop `blockassist` / swarm checkpoints | ~98.6k auto-generated models (11% of the dump) |
+| drop self-loops, break cycles | 1,149 models declare themselves as their own parent |
+| parents missing from the dump become `:Unlisted` nodes | 22% of lineage edges point to a model that is not public anymore |
+| ignore arXiv `1910.09700` | cited by 126k models only because it is in the default card template |
+| precompute depth, descendants, roots | shown on every model page; 99.6% of chains are <= 5 levels deep |
+
 > On Windows, put `MODELATLAS_DATA_DIR=C:\modelatlas-data` in `.env` so the 1.5 GB download is not synced by OneDrive.
+
+---
+
+## Graph model
+
+| Nodes | Key | Relationships (from `Model`) |
+| --- | --- | --- |
+| `Model` (+ `Unlisted` label for parents not in the dump) | `id` | `FINETUNED_FROM`, `ADAPTER_OF`, `QUANTIZED_FROM`, `MERGED_FROM` → `Model` |
+| `Organization` | `id` | `PUBLISHED_BY` |
+| `License` (with `family`, `commercial_use` rules) | `id` | `HAS_LICENSE` |
+| `Dataset` | `id` | `TRAINED_ON` |
+| `Paper` | `arxiv_id` | `CITES` |
+| `Task` | `id` | `PERFORMS` |
+| `Language` | `code` | `SUPPORTS` |
+| `Architecture` | `id` | `HAS_ARCHITECTURE` |
+
+8 uniqueness constraints, 7 range indexes and 1 fulltext index, all in [`app/database/schema.py`](app/database/schema.py)
+with the query each one serves. Full diagram and modeling rationale: coming in `docs/`.
 
 ---
 
@@ -110,6 +148,9 @@ guardrails and evidence labels live. (Diagram coming with the graph model PR.)
 | `make ollama-pull` | Download the local LLM into the Ollama container |
 | `make data` | Download the raw Hugging Face model-card dump (~1.5 GB, once) |
 | `make profile` | Profile the raw dump into `reports/data_profile.md` |
+| `make fixture` | Rebuild the small test fixture from the full dump |
+| `make seed` | Build the full graph in Neo4j (transform + load + validate) |
+| `make seed-sample` | Load the small fixture into Neo4j (used by CI) |
 | `make test` | All tests + coverage (integration tests skip if the stack is down) |
 | `make test-unit` | Fast tests only, no Docker needed |
 | `make test-integration` | Tests against the running stack |
