@@ -1,0 +1,429 @@
+diff --git a/docs/anti_genericity/README.md b/docs/anti_genericity/README.md
+new file mode 100644
+index 0000000..af656e8
+--- /dev/null
++++ b/docs/anti_genericity/README.md
+@@ -0,0 +1,137 @@
++# Anti-genericity appendix
++
++The course asks us to prove that our graph model is not the first schema any AI assistant would give. So we
++asked AI assistants to design the schema from the same project description, and we compare their answers with
++what we built. Every number below comes from our reports: [`data_profile.md`](../../reports/data_profile.md)
++(raw dump, 861,627 models), [`etl_report.md`](../../reports/etl_report.md) and
++[`load_report.md`](../../reports/load_report.md) (the graph we load).
++
++## 1. How we did it
++
++- **Date:** 15 October 2026.
++- **Assistants:** two new Claude (Sonnet) sessions with no project context: no files, no repository, no earlier
++  messages. Two earlier attempts were thrown away because the assistant opened our repository and copied our
++  schema, which defeats the purpose.
++- **Prompt** (identical in both sessions, pasted as is):
++
++  ```text
++  Design a Neo4j graph schema for this project: "A knowledge graph of the open AI model ecosystem on
++  Hugging Face: models, their base models (fine-tunes, adapters, quantized versions, merges), licenses,
++  training datasets, papers, benchmarks and organizations. Users want to trace where a model comes from,
++  check if it can be used commercially, and get model recommendations."
++  Give node labels, relationship types, key properties and constraints.
++  ```
++
++- The raw answers are kept **unchanged** in [`generic_schema_1.md`](generic_schema_1.md) and
++  [`generic_schema_2.md`](generic_schema_2.md). We call them G1 and G2.
++
++Honest first remark: both answers are good. Both make `License` a node with rules, both allow several parents for
++a merge, both have a stub for missing parents. The differences are in the details that only appear once you look
++at the real data.
++
++## 2. Side by side
++
++| Aspect | Generic schemas (G1, G2) | Our schema | Why ours (with our numbers) |
++| --- | --- | --- | --- |
++| Lineage | One type with a property: G1 `DERIVED_FROM {relation}`, G2 `BASED_ON {kind}` | 4 types: `FINETUNED_FROM`, `ADAPTER_OF`, `QUANTIZED_FROM`, `MERGED_FROM` (child → parent) | The kinds mean different things (a quantized copy *is* its parent's weights, a fine-tune is a new model) and have very different sizes in the graph: 47,560 / 36,907 / 10,614 / 6,700 edges. With types, the filter is in the pattern (`-[:QUANTIZED_FROM*]->`), so Neo4j never expands the other edges; with a property it expands all of them and filters afterwards. |
++| Merges with several parents | Several edges allowed. G1 adds: "a merge is a model with two or more outgoing edges" | A merge is a model with `MERGED_FROM` edges | 6,574 models of the raw dump have several parents, and not all are merges: a GGUF can declare a `finetune` parent and a `quantized` parent (example in section 3). G1's rule counts it as a merge. |
++| Parents missing from the dump | G1 `isStub` property, G2 `stub: true` property | Extra label `:Unlisted` on the `Model` node | 22% of declared lineage edges (88,691 of 398,422) point to a model that is not in the dump; we keep them as 6,138 `:Unlisted` nodes. A label is checked in the pattern (`WHERE NOT m:Unlisted` in the recommender) and the license check says `incomplete_lineage` when it meets one. |
++| License | Node with rules. G2 keys it on `spdx_id` or `key` | Node keyed on the Hub id (`apache-2.0`, `llama3.1`); rules in a reviewed file, [`config/licenses.toml`](../../config/licenses.toml), applied at load | 78 `License` nodes shared by 115,244 `HAS_LICENSE` edges. Hub ids such as `llama3.1` or `openrail++` have no SPDX id, so G2's key would be empty for them. A missing rule gives `needs_review`, never `ok`. |
++| Tags | Task, Language, Architecture as nodes; G1 and G2 also suggest a free `Tag` node | Typed nodes only for a known list (70 `Architecture` nodes from [`scope.toml`](../../config/scope.toml)); weight formats stay a list property `formats` | Raw tags are mostly noise for our questions (`conversational` on 212,739 models, `gensyn` on 105,309). A `Tag` node would be a huge hub with no meaning. |
++| Task | Node + property (G1 `FOR_TASK` + `pipelineTag`, G2 `SOLVES` + `pipeline_tag`) | Node (`PERFORMS`, 102,893 edges, 56 tasks) + indexed property `Model.task` | Same idea as the generic answers. The property is the first filter of the recommender (index `model_task`); the node is for browsing ("all tasks") and the agent. |
++| Noise in the data | Not mentioned | Dropped by the ETL before loading | 105,310 spam models (`blockassist` / swarm checkpoints) dropped; 6,910 links to the template paper 1910.09700 dropped; 529 fake dataset links (`custom`, local files) dropped; 1,149 self-loops dropped and 1 cycle edge broken. |
++| Precomputed metrics | G1 caches `effectiveCommercialUse`, G2 caches `commercial_status` and `root_model_ids` | `lineage_depth`, `child_count`, `descendant_count`, `root_ids` on every model | We cache structure, which only changes when the data is reloaded, and never the license verdict, which changes each time a rule is fixed. Chains go up to 33 levels deep, but 99.6% are ≤ 5, so depth bounds are cheap. |
++| Predicted parents | Same edge with `source: inferred` (G1 `inferred_from_name`) | Planned: predictions stored apart from the real edges, as hypotheses with a confidence | A guessed edge in the same relationship type would be followed by every lineage and license query. Keeping it separate means a guess can never be shown as a fact. |
++| Trust labels | Only on benchmark scores (G1 `verified`, G2 `verified`) | Every API answer says `VERIFIED`, `DERIVED` or `HYPOTHESIS`; lineage edges have `declared` | The 60 raw edges with no kind are loaded as `FINETUNED_FROM` with `declared = false`, so "we guessed the kind" is never lost. |
++
++## 3. Where the generic schema gives a WRONG answer
++
++The classic mistake ("only one parent per merge" or "license as a string on the child") is not in these two
++answers. The wrong answers come from the real data instead.
++
++**Example 1: "Can I use this model commercially?"** Query from G1, shortened (G2's query has the same pattern):
++
++```cypher
++MATCH (m:Model {id: $id})
++OPTIONAL MATCH (m)-[:DERIVED_FROM*0..]->(a:Model)-[:LICENSED_UNDER]->(l:License)
++WITH m, collect(DISTINCT {model: a.id, commercial: l.commercialUse}) AS chain
++RETURN CASE WHEN any(x IN chain WHERE x.commercial = 'prohibited') THEN 'no'
++            WHEN any(x IN chain WHERE x.commercial = 'conditional') THEN 'conditional'
++            ELSE 'yes' END AS commercialUse
++```
++
++Why it is wrong: the pattern only keeps ancestors that *have* a license. 46.64% of raw models declare none, and
++missing parents (stubs) never do. A model whose only license is on itself says `apache-2.0` but whose base model is
++unlicensed or missing gets **`yes`**. A model with no license anywhere also gets **`yes`** (every `any(...)` is
++false). G2's version uses `MATCH` instead of `OPTIONAL MATCH`, so the same model returns **no row at all**.
++
++Our query (the facts part of [`license_check.cypher`](../../app/queries/license_check.cypher), simplified): every
++ancestor comes back, with or without a license, and Python turns "no license" or "unlisted" into `needs_review`.
++
++```cypher
++MATCH (m:Model {id: $id})-[:FINETUNED_FROM|ADAPTER_OF|QUANTIZED_FROM|MERGED_FROM*0..6]->(a:Model)
++OPTIONAL MATCH (a)-[:HAS_LICENSE]->(l:License)
++RETURN DISTINCT a.id AS model, a:Unlisted AS unlisted, l.id AS license, l.commercial_use AS commercial_use
++```
++
++**Example 2: "Which papers are the most cited by models?"** G2 maps every `arxiv:` tag to a `DESCRIBED_IN` edge,
++and G1 has the same edge with no filter (G2 keys papers on `arxiv_id` instead of `id`):
++
++```cypher
++MATCH (:Model)-[:DESCRIBED_IN]->(p:Paper)
++RETURN p.id AS paper, count(*) AS models ORDER BY models DESC LIMIT 3
++```
++
++Why it is wrong: neither answer filters anything, so on the dump the top answer is arXiv 1910.09700 with 126,239
++models. It is "Quantifying the Carbon Emissions
++of Machine Learning", cited only because the link is in Hugging Face's default model-card template. The second
++one, 2504.07091 (98,583 models), has almost the same count as the 98,591 `blockassist` spam models. Our ETL drops
++template citations and spam before loading, so the same question on our graph gives real papers:
++
++```cypher
++MATCH (:Model)-[:CITES]->(p:Paper)
++RETURN p.arxiv_id AS paper, count(*) AS models ORDER BY models DESC LIMIT 3
++```
++
++**Example 3: "How many merges are there?"** With G1's own definition ("a merge is a model with two or more
++outgoing edges"):
++
++```cypher
++MATCH (m:Model)-[:DERIVED_FROM]->(p:Model)
++WITH m, count(p) AS parents WHERE parents >= 2
++RETURN count(m) AS merges
++```
++
++Why it is wrong: having two parents does not make a merge. `Dhptl/zephyr-7b-beta-GGUF` (in our test fixture)
++declares `finetune: mistralai/Mistral-7B-v0.1` *and* `quantized: HuggingFaceH4/zephyr-7b-beta`. It is a quantized
++copy, but G1 counts it as a merge, and a recommender that hides merges would hide it. On our graph the type says
++what the Hub declared:
++
++```cypher
++MATCH (m:Model) WHERE EXISTS { (m)-[:MERGED_FROM]->(:Model) }
++RETURN count(m) AS merges
++```
++
++## 4. What the generic schemas did better, or what we considered
++
++- **Benchmarks.** Both have a `Benchmark` node (G1 with an `EvalResult` node, G2 with scores on an `EVALUATED_ON`
++  edge). We don't have benchmarks yet; we plan to add a `Benchmark` node, and G2's "score on the edge, with
++  `source` and `verified`" is the simpler option for us.
++- **License of the training data.** Both put `LICENSED_UNDER` on `Dataset` too. It is a real gap in our license
++  check: a model trained on a non-commercial dataset may inherit the restriction. Our second source (dataset cards)
++  has this field, so this is a natural next step.
++- **Similarity for recommendations.** Both suggest `SIMILAR_TO` edges or a vector index on the model card. Our
++  recommender only filters and ranks by downloads today.
++- **Merge details.** G2 puts `method` and `weight` on merge edges. Good idea, but the Hub tags we load only say
++  `base_model:merge:<id>`, so we would have to read every card text to fill them.
++- **Things we chose not to do:** G1's `Author` and `Library` nodes and G2's `ModelFamily` node do not serve any of
++  our use cases yet, and a cached commercial verdict on each model (both answers) would go stale every time we fix
++  a license rule.
++
++## 5. Conclusion
++
++The generic answers are a good textbook schema: they get the big entities right. What they miss is everything
++the data taught us: 22% of lineage edges point to missing models, almost half of the models have no license, 12% of
++the dump is spam (105,310 models), and the most cited paper is a template. Our choices (typed lineage, `:Unlisted`, a fail-safe
++license check, an ETL that cleans before loading, precomputed structure but no cached verdict) all come from
++these numbers, and section 3 shows that skipping them gives wrong answers, not just slower ones.
+diff --git a/docs/anti_genericity/generic_schema_1.md b/docs/anti_genericity/generic_schema_1.md
+new file mode 100644
+index 0000000..2e6a3c1
+--- /dev/null
++++ b/docs/anti_genericity/generic_schema_1.md
+@@ -0,0 +1,135 @@
++<!--
++Raw answer, kept unchanged (anti-genericity appendix, see README.md in this folder).
++Assistant: Claude (Sonnet), new session with no project context and no files.
++Date: 2026-10-15. Prompt: the exact text quoted in README.md, section 1.
++-->
++
++# Neo4j schema: Hugging Face model ecosystem
++
++## Design decisions
++
++- **Lineage is a DAG of `Model` nodes.** Merges have several parents, so one model can have many outgoing `DERIVED_FROM` edges.
++- **Licenses are nodes with structured terms.** Commercial-use checks need to query them, not parse strings.
++- **Benchmark scores are reified as `EvalResult` nodes.** A score has a metric, shot count, source and verification status, and it links a model to a benchmark.
++- **Recommendations come from facts a user can filter on:** task, size, language, license, score, popularity. Embedding similarity sits on top of those.
++
++## Node labels and key properties
++
++| Label | Key properties |
++|---|---|
++| `Model` | `id` (repo id, e.g. `meta-llama/Llama-3.1-8B`), `name`, `sha`, `createdAt`, `lastModified`, `downloads`, `likes`, `trendingScore`, `gated`, `paramsB`, `contextLength`, `precision`, `format` (safetensors, gguf, awq, gptq...), `pipelineTag`, `modelType` (base, finetune, adapter, quantized, merge; derived), `isStub` (true for base models not found on HF), `effectiveCommercialUse` (materialized, see below), `cardEmbedding` |
++| `Organization` | `name` (HF handle), `displayName`, `type` (company, lab, academic, community, individual), `verified`, `country` |
++| `License` | `id` (SPDX or HF slug, e.g. `apache-2.0`, `llama3.1`), `name`, `family` (permissive, copyleft, openrail, custom, noncommercial), `commercialUse` (allowed, conditional, prohibited), `attributionRequired`, `shareAlike`, `derivativesAllowed`, `mauThreshold`, `hasAcceptableUsePolicy`, `usageRestrictions` (list), `url` |
++| `Dataset` | `id`, `name`, `kind` (pretrain, sft, preference, eval), `sizeRows`, `synthetic`, `gated`, `downloads` |
++| `Paper` | `id` (arXiv id or DOI), `title`, `year`, `abstract` |
++| `Benchmark` | `id`, `name`, `category` (reasoning, code, math, chat, multilingual...), `higherIsBetter` |
++| `EvalResult` | `id`, `metric` (e.g. `acc_norm`), `value`, `shots`, `split`, `source` (self-reported, leaderboard, model-index), `verified`, `evaluatedAt` |
++| `Task` | `id` (e.g. `text-generation`), `name`, `modality` |
++| `Language` | `code` (ISO 639) |
++| `Architecture` | `name` (e.g. `LlamaForCausalLM`), `family` |
++| `Library` | `name` (transformers, peft, llama.cpp, vllm...) |
++| `Tag` (optional) | `name`, for free-form tags such as `roleplay` or `function-calling` |
++| `Author` (optional) | `name`, for paper authors |
++
++## Relationship types
++
++```
++(:Model)-[:DERIVED_FROM {relation, source}]->(:Model)
++(:Model)-[:LICENSED_UNDER]->(:License)
++(:Dataset)-[:LICENSED_UNDER]->(:License)
++(:Model)-[:TRAINED_ON {stage, source}]->(:Dataset)
++(:Dataset)-[:GENERATED_BY]->(:Model)            // synthetic data provenance
++(:Dataset)-[:DERIVED_FROM]->(:Dataset)
++(:Model)-[:PUBLISHED_BY]->(:Organization)
++(:Dataset)-[:PUBLISHED_BY]->(:Organization)
++(:Model|Dataset|Benchmark)-[:DESCRIBED_IN]->(:Paper)   // Benchmark: introduced in
++(:Paper)-[:AUTHORED_BY]->(:Author)
++(:Author)-[:AFFILIATED_WITH]->(:Organization)
++(:Model)-[:HAS_RESULT]->(:EvalResult)-[:ON_BENCHMARK]->(:Benchmark)
++(:Model)-[:FOR_TASK]->(:Task)
++(:Model)-[:SUPPORTS_LANGUAGE]->(:Language)
++(:Model)-[:HAS_ARCHITECTURE]->(:Architecture)
++(:Model)-[:USES_LIBRARY]->(:Library)
++(:Model)-[:HAS_TAG]->(:Tag)
++(:Benchmark)-[:FOR_TASK]->(:Task)
++(:Model)-[:SIMILAR_TO {score}]->(:Model)        // precomputed with GDS or embeddings
++```
++
++- **`DERIVED_FROM.relation`** takes one of `finetune`, `adapter`, `quantized`, `merge`. This mirrors the `base_model_relation` field in HF model cards. A single type keeps traversal simple (`DERIVED_FROM*1..`), and you filter on the property when you need one kind. A merge is a model with two or more outgoing edges.
++- **`source`** records where an edge came from (`card_metadata`, `config.json`, `inferred_from_name`). Lineage extracted from model cards is often missing or wrong, so this lets users judge confidence.
++
++## Constraints and indexes (Neo4j 5)
++
++```cypher
++CREATE CONSTRAINT model_id   IF NOT EXISTS FOR (n:Model)        REQUIRE n.id IS UNIQUE;
++CREATE CONSTRAINT org_name   IF NOT EXISTS FOR (n:Organization) REQUIRE n.name IS UNIQUE;
++CREATE CONSTRAINT lic_id     IF NOT EXISTS FOR (n:License)      REQUIRE n.id IS UNIQUE;
++CREATE CONSTRAINT ds_id      IF NOT EXISTS FOR (n:Dataset)      REQUIRE n.id IS UNIQUE;
++CREATE CONSTRAINT paper_id   IF NOT EXISTS FOR (n:Paper)        REQUIRE n.id IS UNIQUE;
++CREATE CONSTRAINT bench_id   IF NOT EXISTS FOR (n:Benchmark)    REQUIRE n.id IS UNIQUE;
++CREATE CONSTRAINT eval_id    IF NOT EXISTS FOR (n:EvalResult)   REQUIRE n.id IS UNIQUE;
++CREATE CONSTRAINT task_id    IF NOT EXISTS FOR (n:Task)         REQUIRE n.id IS UNIQUE;
++CREATE CONSTRAINT lang_code  IF NOT EXISTS FOR (n:Language)     REQUIRE n.code IS UNIQUE;
++CREATE CONSTRAINT arch_name  IF NOT EXISTS FOR (n:Architecture) REQUIRE n.name IS UNIQUE;
++CREATE CONSTRAINT lib_name   IF NOT EXISTS FOR (n:Library)      REQUIRE n.name IS UNIQUE;
++
++CREATE INDEX model_downloads IF NOT EXISTS FOR (m:Model) ON (m.downloads);
++CREATE INDEX model_params    IF NOT EXISTS FOR (m:Model) ON (m.paramsB);
++CREATE INDEX model_type      IF NOT EXISTS FOR (m:Model) ON (m.modelType);
++CREATE FULLTEXT INDEX model_text IF NOT EXISTS FOR (m:Model) ON EACH [m.id, m.description];
++CREATE VECTOR INDEX model_embedding IF NOT EXISTS FOR (m:Model) ON (m.cardEmbedding)
++  OPTIONS {indexConfig: {`vector.dimensions`: 768, `vector.similarity_function`: 'cosine'}};
++```
++
++Existence and type constraints (`IS NOT NULL`, `IS :: STRING`) and node keys need Enterprise Edition. On Community, enforce them in the loader. `DERIVED_FROM` must stay acyclic, and this cannot be expressed as a constraint. Check it in the ingestion pipeline, for example by rejecting an edge when the parent already has a path to the child.
++
++## How the three user needs map to the graph
++
++**1. Trace where a model comes from**
++
++```cypher
++MATCH p = (m:Model {id:$id})-[:DERIVED_FROM*1..]->(root:Model)
++WHERE NOT (root)-[:DERIVED_FROM]->()
++RETURN p
++```
++
++Add `-[:TRAINED_ON]->(:Dataset)` and `-[:DESCRIBED_IN]->(:Paper)` on each ancestor to get full provenance.
++
++**2. Can I use it commercially?**
++
++The effective answer is the most restrictive of the model's own license, its ancestors' licenses and, optionally, the licenses of its training data. For example, a model with an Apache-2.0 card that is fine-tuned from a non-commercial base is not commercially usable.
++
++```cypher
++MATCH (m:Model {id:$id})
++OPTIONAL MATCH (m)-[:DERIVED_FROM*0..]->(a:Model)-[:LICENSED_UNDER]->(l:License)
++WITH m, collect(DISTINCT {model:a.id, license:l.id, commercial:l.commercialUse, mau:l.mauThreshold}) AS chain
++RETURN m.id, chain,
++       CASE WHEN any(x IN chain WHERE x.commercial='prohibited') THEN 'no'
++            WHEN any(x IN chain WHERE x.commercial='conditional') THEN 'conditional'
++            ELSE 'yes' END AS commercialUse
++```
++
++Materialize the result in `Model.effectiveCommercialUse` during ingestion so recommendation queries can filter on it cheaply. Return the chain as the explanation. A bare "no" is not enough; users need to see which ancestor blocks it.
++
++**3. Recommendations**
++
++Filter on facts, then rank:
++
++```cypher
++MATCH (m:Model)-[:FOR_TASK]->(:Task {id:'text-generation'}),
++      (m)-[:SUPPORTS_LANGUAGE]->(:Language {code:'de'}),
++      (m)-[:HAS_RESULT]->(r:EvalResult)-[:ON_BENCHMARK]->(:Benchmark {id:'mmlu'})
++WHERE m.effectiveCommercialUse = 'yes' AND m.paramsB <= 9
++RETURN m.id, r.value, m.downloads
++ORDER BY r.value DESC LIMIT 10
++```
++
++For "more like this model", use `SIMILAR_TO` or a vector search on `cardEmbedding`. For "best fine-tune of X", traverse `DERIVED_FROM` in reverse and rank by benchmark score.
++
++## Notes and trade-offs
++
++- **Stub models:** base models referenced in cards but missing from HF (private, removed or closed-source) become `Model {isStub:true}`. This keeps lineage chains from breaking.
++- **Quantized and adapter variants:** these are separate `Model` nodes. In recommendation queries, collapse them with `WHERE m.modelType IN ['base','finetune','merge']` unless the user wants a specific format (GGUF, AWQ).
++- **Benchmark score reliability:** scores are mostly self-reported, so keep `source` and `verified` on `EvalResult` and let queries filter on them.
++- **Licenses with conditions:** some licenses (Llama, Gemma, OpenRAIL) allow commercial use only under conditions. Model these as `commercialUse:'conditional'` plus `mauThreshold` and `usageRestrictions`, instead of forcing a yes/no.
++- **Versions over time:** if you need history, such as license changes between revisions, add `(:ModelRevision {sha})-[:REVISION_OF]->(:Model)`. For a first version, `Model.sha` and `lastModified` are enough.
+diff --git a/docs/anti_genericity/generic_schema_2.md b/docs/anti_genericity/generic_schema_2.md
+new file mode 100644
+index 0000000..ced430c
+--- /dev/null
++++ b/docs/anti_genericity/generic_schema_2.md
+@@ -0,0 +1,139 @@
++<!--
++Raw answer, kept unchanged (anti-genericity appendix, see README.md in this folder).
++Assistant: Claude (Sonnet), a second new session with no project context and no files.
++Date: 2026-10-15. Prompt: the exact text quoted in README.md, section 1.
++-->
++
++# Neo4j schema: Hugging Face open model ecosystem
++
++## Design decisions
++
++1. **Lineage is one relationship type** (`BASED_ON`) with a `kind` property, not four types. This makes "trace to the root" a single variable-length query, `-[:BASED_ON*]->`. HF's own `base_model:<kind>:<id>` tags map to `kind` directly.
++2. **License is a node with normalized commercial-use flags.** Model cards use free-form licenses such as `llama3`, `gemma` and `openrail`. Normalizing them into fields you can filter on is what makes the commercial check answerable.
++3. **Benchmark scores are properties on a relationship**, not a node. There is one edge per model, benchmark and metric.
++4. **Task, Language and Architecture are nodes**, so recommendations can be graph traversals instead of string filters.
++
++## Node labels and key properties
++
++| Label | Key properties |
++|---|---|
++| `Model` | `id` (repo id, e.g. `meta-llama/Llama-3.1-8B`), `name`, `params_b`, `context_length`, `pipeline_tag`, `library`, `format` (safetensors, gguf, onnx), `quant` (e.g. Q4_K_M, AWQ), `dtype`, `gated`, `downloads_30d`, `likes`, `created_at`, `last_modified`, `card_url`, `embedding` (vector of the model card), plus derived `root_model_ids`, `commercial_status` and `commercial_checked_at` |
++| `Organization` | `handle`, `name`, `kind` (org or user), `verified`, `country`, `url` |
++| `License` | `spdx_id` or `key`, `name`, `url`, `commercial_use` (`allowed`, `conditional`, `prohibited`, `unknown`), `attribution_required`, `copyleft`, `derivatives_allowed`, `mau_threshold`, `has_use_restrictions` (AUP or RAIL), `requires_same_license_on_derivatives` |
++| `Dataset` | `id`, `name`, `size_rows`, `modality`, `synthetic` (bool), `downloads` |
++| `Paper` | `arxiv_id`, `title`, `year`, `abstract`, `url` |
++| `Benchmark` | `name` (e.g. MMLU, IFEval), `category`, `higher_is_better`, `url` |
++| `Task` | `name` (text-generation, embedding, ASR, ...), the HF pipeline tag |
++| `Language` | `code`, `name` |
++| `Architecture` | `name` (LlamaForCausalLM, Mistral, ...), `family` |
++
++Optional additions:
++- `ModelFamily` (Llama 3, Qwen2.5) for grouping.
++- `Tag` for free-form tags.
++- `Hardware` for VRAM profiles. You can start by computing `est_vram_gb` as a property on `Model`.
++
++## Relationships
++
++```
++(:Model)-[:BASED_ON {kind, method, weight, source}]->(:Model)
++(:Model)-[:LICENSED_UNDER]->(:License)
++(:Dataset)-[:LICENSED_UNDER]->(:License)
++(:Organization)-[:PUBLISHED]->(:Model)
++(:Organization)-[:PUBLISHED]->(:Dataset)
++(:Model)-[:TRAINED_ON {stage}]->(:Dataset)
++(:Model)-[:DESCRIBED_IN]->(:Paper)
++(:Dataset)-[:DESCRIBED_IN]->(:Paper)
++(:Paper)-[:INTRODUCES]->(:Benchmark)
++(:Paper)-[:INTRODUCES]->(:Model)
++(:Model)-[:EVALUATED_ON {metric, score, split, n_shots, source, verified, date}]->(:Benchmark)
++(:Benchmark)-[:MEASURES]->(:Task)
++(:Model)-[:SOLVES]->(:Task)
++(:Model)-[:SUPPORTS]->(:Language)
++(:Model)-[:HAS_ARCHITECTURE]->(:Architecture)
++(:Model)-[:IN_FAMILY]->(:ModelFamily)
++```
++
++Notes on the properties:
++- **`BASED_ON.kind`** is one of `finetune`, `adapter`, `quantized`, `merge`. Add `base` for a root model whose parent is unknown or absent.
++- **`BASED_ON.weight` and `method`** are for merges. A merge has several outgoing `BASED_ON` edges, each with its mixing weight and a `method` such as slerp, ties or dare.
++- **`BASED_ON.source`** records provenance: `card_metadata`, `config_json` or `inferred`. Inferred edges let you flag low-confidence lineage.
++- **`TRAINED_ON.stage`** is `pretrain`, `sft` or `preference`.
++- **`EVALUATED_ON.source`** says where a score came from: `model_card`, `open_llm_leaderboard` or `self_reported`. Together with `verified`, it lets you down-weight unverified scores.
++
++## Constraints and indexes
++
++```cypher
++CREATE CONSTRAINT model_id    IF NOT EXISTS FOR (n:Model)        REQUIRE n.id IS UNIQUE;
++CREATE CONSTRAINT org_handle  IF NOT EXISTS FOR (n:Organization) REQUIRE n.handle IS UNIQUE;
++CREATE CONSTRAINT lic_key     IF NOT EXISTS FOR (n:License)      REQUIRE n.key IS UNIQUE;
++CREATE CONSTRAINT dataset_id  IF NOT EXISTS FOR (n:Dataset)      REQUIRE n.id IS UNIQUE;
++CREATE CONSTRAINT paper_arxiv IF NOT EXISTS FOR (n:Paper)        REQUIRE n.arxiv_id IS UNIQUE;
++CREATE CONSTRAINT bench_name  IF NOT EXISTS FOR (n:Benchmark)    REQUIRE n.name IS UNIQUE;
++CREATE CONSTRAINT task_name   IF NOT EXISTS FOR (n:Task)         REQUIRE n.name IS UNIQUE;
++CREATE CONSTRAINT lang_code   IF NOT EXISTS FOR (n:Language)     REQUIRE n.code IS UNIQUE;
++CREATE CONSTRAINT arch_name   IF NOT EXISTS FOR (n:Architecture) REQUIRE n.name IS UNIQUE;
++
++CREATE CONSTRAINT model_required IF NOT EXISTS FOR (n:Model) REQUIRE n.id IS NOT NULL;      -- Enterprise
++CREATE CONSTRAINT lic_commercial IF NOT EXISTS FOR (n:License) REQUIRE n.commercial_use IS NOT NULL; -- Enterprise
++
++CREATE INDEX model_task_dl IF NOT EXISTS FOR (n:Model) ON (n.pipeline_tag, n.downloads_30d);
++CREATE INDEX model_params  IF NOT EXISTS FOR (n:Model) ON (n.params_b);
++CREATE FULLTEXT INDEX model_text IF NOT EXISTS FOR (n:Model) ON EACH [n.id, n.name];
++CREATE VECTOR INDEX model_embedding IF NOT EXISTS FOR (n:Model) ON (n.embedding)
++  OPTIONS {indexConfig: {`vector.dimensions`: 768, `vector.similarity_function`: 'cosine'}};
++```
++
++Constraints that aren't enforceable in Neo4j (validate during ingest):
++- `BASED_ON` must not form a cycle.
++- `kind` must be in the allowed set.
++- A model has at most one `LICENSED_UNDER` edge.
++
++## How the three user goals map to queries
++
++**1. Where does this model come from?**
++```cypher
++MATCH p = (m:Model {id:$id})-[:BASED_ON*1..10]->(root:Model)
++WHERE NOT (root)-[:BASED_ON]->()
++RETURN p;
++// Datasets and papers across the whole lineage:
++MATCH (m:Model {id:$id})-[:BASED_ON*0..10]->(a:Model)-[:TRAINED_ON|DESCRIBED_IN]->(x)
++RETURN DISTINCT a.id, labels(x)[0], x;
++```
++
++**2. Can I use it commercially?** The model's own license is not enough, because a fine-tune of a restricted base inherits the restriction. Check every ancestor and every training dataset, taking the most restrictive result.
++```cypher
++MATCH (m:Model {id:$id})-[:BASED_ON*0..10]->(a:Model)-[:LICENSED_UNDER]->(l:License)
++OPTIONAL MATCH (a)-[:TRAINED_ON]->(:Dataset)-[:LICENSED_UNDER]->(dl:License)
++RETURN a.id, l.key, l.commercial_use, l.mau_threshold, l.attribution_required,
++       collect(DISTINCT dl.key) AS dataset_licenses;
++```
++Cache the result in `Model.commercial_status` with `commercial_checked_at`. Recompute it when any ancestor or license changes. Treat `unknown` or a missing license as "not safe", not as "allowed". Say in the UI that this is guidance, not legal advice.
++
++**3. Recommend a model.**
++```cypher
++MATCH (m:Model)-[:SOLVES]->(:Task {name:$task}),
++      (m)-[:SUPPORTS]->(:Language {code:$lang}),
++      (m)-[e:EVALUATED_ON {metric:'acc'}]->(b:Benchmark {name:$bench})
++WHERE m.commercial_status = 'allowed' AND m.params_b <= $maxParams AND e.verified
++RETURN m.id, e.score, m.downloads_30d
++ORDER BY e.score DESC LIMIT 10;
++```
++Similar-model suggestions combine the vector index with graph signals. Use the `embedding` vector, plus shared `Task`, `Architecture` and `TRAINED_ON` neighbours, plus shared lineage (siblings under the same parent).
++
++## Ingestion notes
++
++- **Source mapping.** HF's API and model-card tags give most of the data:
++  - `base_model:*` and `base_model_relation` map to `BASED_ON`.
++  - `license:` maps to `LICENSED_UNDER`.
++  - `datasets:` maps to `TRAINED_ON`.
++  - `arxiv:` maps to `DESCRIBED_IN`.
++  - `model-index` results map to `EVALUATED_ON`.
++  - `pipeline_tag` maps to `SOLVES`.
++  - `language:` maps to `SUPPORTS`.
++- **Missing parents.** Referenced base models may be deleted or private. Create stub `Model` nodes with `stub: true` so lineage edges aren't lost.
++- **Model size.** Quantized repos often don't carry `params_b`. Inherit it from the parent via `BASED_ON`.
++- **Hubs.** Popular bases such as Llama and Mistral will have 10k+ incoming `BASED_ON` edges. Always bound traversal depth and filter early.
++- **Time.** Downloads and likes change daily. If you need trends, keep them as a daily time series (`MetricSnapshot` nodes or an external store), not as overwritten properties.
++- **Licenses.** Seed `License` nodes by hand for the roughly 30 licenses that cover most models (apache-2.0, mit, llama2, llama3.x, gemma, openrail variants, cc-by-nc, etc.). Hand-curation is worth it because the commercial flags drive a user-facing answer.
++
++I can also write this up as a shareable page, or generate a seed Cypher script with sample data, if you want either.
