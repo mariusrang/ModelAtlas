@@ -3,6 +3,7 @@
 Usage:
     python -m scripts.etl.extract                 # every source in config/sources.toml
     python -m scripts.etl.extract model_cards     # only one source
+    python -m scripts.etl.extract --pin           # write the downloaded commits into sources.toml
 
 The download is idempotent: if `data/raw/<source>/manifest.json` already
 records the same commit hash, nothing is downloaded again. The manifest also
@@ -14,13 +15,14 @@ import argparse
 import hashlib
 import json
 import logging
+import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
 from huggingface_hub import HfApi, snapshot_download
 
-from scripts.etl.sources import Source, load_sources
+from scripts.etl.sources import SOURCES_FILE, Source, load_sources
 
 logger = logging.getLogger("modelatlas.extract")
 MANIFEST = "manifest.json"
@@ -82,13 +84,38 @@ def download(source: Source, api: HfApi | None = None) -> dict:
     return manifest
 
 
+def pin_revisions(sources: dict[str, Source], path: Path = SOURCES_FILE) -> dict[str, str]:
+    """Replace `revision = "..."` of each downloaded source by the exact commit of its manifest.
+
+    After that, a fresh clone downloads exactly the data we built the graph from,
+    even if the dataset gets new commits on the Hub.
+    """
+    text = path.read_text(encoding="utf-8")
+    pinned = {}
+    for name, source in sources.items():
+        manifest = read_manifest(source)
+        if not manifest:
+            continue
+        section = re.compile(rf'(\[{re.escape(name)}\][^\[]*?revision = )"[^"]*"', re.S)
+        text, count = section.subn(rf'\g<1>"{manifest["commit"]}"', text)
+        if count:
+            pinned[name] = manifest["commit"]
+    path.write_text(text, encoding="utf-8")
+    return pinned
+
+
 def main(argv: list[str] | None = None) -> int:
     """CLI entry point."""
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     sources = load_sources()
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("names", nargs="*", choices=sorted(sources), help="sources to download (default: all)")
+    parser.add_argument("--pin", action="store_true", help="pin sources.toml to the commits already downloaded")
     args = parser.parse_args(argv)
+    if args.pin:
+        for name, commit in pin_revisions(sources).items():
+            logger.info(f"{name}: pinned to {commit}")
+        return 0
     for name in args.names or sorted(sources):
         download(sources[name])
     return 0

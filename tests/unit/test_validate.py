@@ -16,7 +16,7 @@ CONSTRAINT_NAMES = [s.split()[2] for s in CONSTRAINTS]
 class ScriptedClient:
     """Fake Neo4j client that answers each validation query with canned rows."""
 
-    def __init__(self, models=11, lineage=8, self_loops=0, constraints=None):
+    def __init__(self, models=11, lineage=8, self_loops=0, constraints=None, listed_datasets=0):
         self.answers = {
             "db.labels()": [{"label": "Model", "nodes": models}, {"label": "Unlisted", "nodes": 1}],
             "db.relationshipTypes()": [
@@ -26,6 +26,7 @@ class ScriptedClient:
             ],
             "SHOW CONSTRAINTS": [{"names": CONSTRAINT_NAMES if constraints is None else constraints}],
             "-[r:FINETUNED_FROM": [{"n": self_loops}],
+            "{listed: true}": [{"n": listed_datasets}],
         }
         self.closed = False
 
@@ -55,6 +56,7 @@ def test_valid_graph_passes():
         (ScriptedClient(lineage=5), "lineage relationships"),
         (ScriptedClient(self_loops=2), "self-loops"),
         (ScriptedClient(constraints=["model_id"]), "missing constraints"),
+        (ScriptedClient(listed_datasets=2), "datasets with a card"),
     ],
 )
 def test_broken_graph_fails(client, message):

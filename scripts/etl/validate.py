@@ -4,7 +4,8 @@ Hard checks (the pipeline fails if one is broken):
 - node and lineage-relationship counts equal the staged row counts,
 - every constraint exists,
 - no model is its own parent and no lineage cycle exists,
-- every model has a publisher.
+- every model has a publisher,
+- every dataset card we staged landed on a Dataset node.
 
 The numbers go to reports/load_report.md, which we cite in the README.
 """
@@ -39,6 +40,7 @@ SELF_LOOPS = f"MATCH (m:Model)-[r:{LINEAGE}]->(m) RETURN count(r) AS n"
 # Bounded on purpose: cycles of length <= 8 cover every cycle the profile found.
 CYCLES = f"MATCH (m:Model) WHERE EXISTS {{ (m)-[:{LINEAGE}*1..8]->(m) }} RETURN count(m) AS n"
 NO_PUBLISHER = "MATCH (m:Model) WHERE NOT (m)-[:PUBLISHED_BY]->() RETURN count(m) AS n"
+LISTED_DATASETS = "MATCH (d:Dataset {listed: true}) RETURN count(d) AS n"
 CONSTRAINT_NAMES = "SHOW CONSTRAINTS YIELD name RETURN collect(name) AS names"
 
 
@@ -72,6 +74,11 @@ def validate(client: Neo4jClient, row_counts: dict[str, int]) -> ValidationResul
     lineage = sum(result.rel_types.get(t, 0) for t in LINEAGE_TYPES)
     if lineage != row_counts["lineage"]:
         result.failures.append(f"lineage relationships: expected {row_counts['lineage']}, got {lineage}")
+
+    expected_datasets = row_counts.get("datasets", 0)
+    listed = _scalar(client, LISTED_DATASETS)
+    if listed != expected_datasets:
+        result.failures.append(f"datasets with a card: expected {expected_datasets}, got {listed}")
 
     existing = set(client.read(CONSTRAINT_NAMES)[0]["names"])
     missing = [s.split()[2] for s in CONSTRAINTS if s.split()[2] not in existing]

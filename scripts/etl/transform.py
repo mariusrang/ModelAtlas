@@ -14,7 +14,8 @@ What happens, in order (each rule is justified by reports/data_profile.md):
 5. precompute lineage depth, number of descendants and root models, because
    the API shows them on every model page and recomputing them per request
    would mean a full traversal each time;
-6. build one table per relationship type (license, datasets, papers...).
+6. build one table per relationship type (license, datasets, papers...);
+7. join the dataset cards (second source) to the datasets the models cite.
 
 Output: one Parquet file per table in data/staged/, plus manifest.json with
 counts and everything we dropped, and reports/etl_report.md.
@@ -33,6 +34,7 @@ from pathlib import Path
 
 import pandas as pd
 
+from scripts.etl.dataset_cards import enrich_datasets
 from scripts.etl.raw import add_parsed_tags, load_metadata
 from scripts.etl.sources import DATA_DIR, RAW_DIR, REPORTS_DIR, ROOT
 
@@ -41,6 +43,7 @@ logger = logging.getLogger("modelatlas.transform")
 SCOPE_FILE = ROOT / "config" / "scope.toml"
 STAGED_DIR = DATA_DIR / "staged"
 SAMPLE_DIR = ROOT / "tests" / "fixtures" / "sample_models"
+SAMPLE_DATASETS_DIR = ROOT / "tests" / "fixtures" / "sample_datasets"
 
 # Hub relation kind -> Neo4j relationship type (child -> parent).
 RELATION_TYPES = {
@@ -93,6 +96,8 @@ class StagedGraph:
     lineage: pd.DataFrame
     links: dict[str, pd.DataFrame] = field(default_factory=dict)
     stats: dict = field(default_factory=dict)
+    # from the dataset cards: datasets, dataset_license, dataset_language
+    datasets: dict[str, pd.DataFrame] = field(default_factory=dict)
 
 
 # ---------------------------------------------------------------- selection
@@ -374,6 +379,7 @@ def write_staged(graph: StagedGraph, out_dir: Path, source: str) -> dict:
     out_dir.mkdir(parents=True, exist_ok=True)
     tables = {"models": graph.models, "unlisted": graph.unlisted, "lineage": graph.lineage}
     tables.update({f"link_{name}": table for name, table in graph.links.items()})
+    tables.update(graph.datasets)
     for name, table in tables.items():
         table.to_parquet(out_dir / f"{name}.parquet", index=False)
     manifest = {
@@ -413,9 +419,12 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     raw_dir = SAMPLE_DIR if args.sample else RAW_DIR / "model_cards"
+    cards_dir = SAMPLE_DATASETS_DIR if args.sample else RAW_DIR / "dataset_cards"
     logger.info(f"reading {raw_dir}")
     df = add_parsed_tags(load_metadata(raw_dir))
     graph = build_graph(df, Scope.load())
+    graph.datasets, dataset_stats = enrich_datasets(graph.links["dataset"]["dataset"], cards_dir)
+    graph.stats.update(dataset_stats)
     manifest = write_staged(graph, args.out_dir, "sample fixture" if args.sample else "model_cards dump")
     REPORTS_DIR.mkdir(exist_ok=True)
     report_name = "etl_report_sample.md" if args.sample else "etl_report.md"

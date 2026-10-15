@@ -12,7 +12,8 @@ min_likes = 1
 add_ancestors = true
 
 [drop]
-# ~98.6k auto-generated "blockassist" / swarm checkpoints (11% of the dump).
+# Auto-generated "blockassist" / RL-swarm checkpoints: ~98.6k carry the
+# blockassist tag, 105k (12% of the dump) once the other swarm tags are added.
 spam_tags = ["blockassist", "gensyn-blockassist", "gensyn", "rl-swarm", "genrl-swarm"]
 # arXiv 1910.09700 ("Quantifying the Carbon Emissions of ML") is cited by 126k
 # models only because it sits in the default model-card template: it is not a
