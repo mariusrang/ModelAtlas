@@ -2,8 +2,8 @@
 
 Design choices:
 - `UNWIND $rows AS row MERGE ...` with batches of 5,000 rows: one round trip
-  per batch instead of one per row (benchmarked in reports/benchmarks.md),
-  and MERGE makes the load idempotent (running it twice gives the same graph).
+  per batch instead of one per row, and MERGE makes the load idempotent
+  (running it twice gives the same graph).
 - every value goes through query parameters, never string formatting; the
   only formatted parts are labels and relationship types, which come from the
   fixed LINKS table below, never from the data.
@@ -12,7 +12,6 @@ Design choices:
 
 import logging
 import time
-import tomllib
 from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
@@ -20,13 +19,12 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from app.database.license_rules import LICENSE_RULES_QUERY, UNKNOWN_FAMILY_QUERY, load_license_rules
 from app.database.neo4j_client import Neo4jClient
 from app.database.schema import apply_schema
 from app.domain import LINEAGE_TYPES
-from scripts.etl.sources import ROOT
 
 logger = logging.getLogger("modelatlas.load")
-LICENSES_FILE = ROOT / "config" / "licenses.toml"
 
 
 @dataclass(frozen=True)
@@ -100,11 +98,35 @@ MERGE (m)-[r:{rel_type}]->(t)
 SET r.source = 'card_metadata'
 """
 
-LICENSE_RULES_QUERY = """
+# Dataset nodes already exist (created from the model cards' dataset tags);
+# the dataset cards only add properties and links to them.
+DATASET_QUERY = """
 UNWIND $rows AS row
-MATCH (l:License {id: row.id})
-SET l += row.props
+MATCH (d:Dataset {id: row.id})
+SET d.author = row.author,
+    d.downloads = row.downloads,
+    d.likes = row.likes,
+    d.created_at = datetime(row.created_at),
+    d.size_category = row.size_category,
+    d.task_categories = row.task_categories,
+    d.listed = true
 """
+
+DATASET_LINK_QUERY = """
+UNWIND $rows AS row
+MATCH (d:Dataset {{id: row.dataset}})
+MERGE (t:{label} {{{key}: row.value}})
+MERGE (d)-[r:{rel_type}]->(t)
+SET r.source = 'dataset_card'
+"""
+
+# staged table -> (label, key, relationship type) for the dataset links
+DATASET_LINKS = {
+    "dataset_license": Link("License", "id", "HAS_LICENSE"),
+    "dataset_language": Link("Language", "code", "SUPPORTS"),
+}
+
+UNLISTED_DATASETS_QUERY = "MATCH (d:Dataset) WHERE d.listed IS NULL SET d.listed = false"
 
 RESET_QUERY = "MATCH (n) CALL (n) { DETACH DELETE n } IN TRANSACTIONS OF 10000 ROWS"
 
@@ -132,13 +154,6 @@ def batches(rows: list[dict], size: int) -> Iterator[list[dict]]:
     """Split rows into chunks of `size`."""
     for start in range(0, len(rows), size):
         yield rows[start : start + size]
-
-
-def load_license_rules(path: Path = LICENSES_FILE) -> list[dict]:
-    """Rows for LICENSE_RULES_QUERY from config/licenses.toml."""
-    with path.open("rb") as handle:
-        raw = tomllib.load(handle)
-    return [{"id": entry["id"], "props": {k: v for k, v in entry.items() if k != "id"}} for entry in raw.values()]
 
 
 class GraphLoader:
@@ -183,10 +198,22 @@ class GraphLoader:
         query = LINK_QUERY.format(label=link.label, key=link.key, rel_type=link.rel_type)
         self.run_batched(f"{link.rel_type} rels", query, rows)
 
+    def load_datasets(self, staged_dir: Path) -> None:
+        """Dataset card properties and links. Skipped if the transform found no dataset cards."""
+        path = staged_dir / "datasets.parquet"
+        if path.exists():
+            self.run_batched("dataset cards", DATASET_QUERY, to_records(pd.read_parquet(path)))
+            for name, link in DATASET_LINKS.items():
+                table = pd.read_parquet(staged_dir / f"{name}.parquet")
+                rows = [{"dataset": d, "value": _plain(v)} for d, v in zip(table.iloc[:, 0], table.iloc[:, 1])]
+                query = DATASET_LINK_QUERY.format(label=link.label, key=link.key, rel_type=link.rel_type)
+                self.run_batched(f"dataset {link.rel_type} rels", query, rows)
+        self.client.write(UNLISTED_DATASETS_QUERY)
+
     def apply_license_rules(self) -> None:
         """Add family / commercial-use rules to License nodes, 'unknown' for the rest."""
         self.run_batched("license rules", LICENSE_RULES_QUERY, load_license_rules())
-        self.client.write("MATCH (l:License) WHERE l.family IS NULL SET l.family = 'unknown'")
+        self.client.write(UNKNOWN_FAMILY_QUERY)
 
     def load_all(self, staged_dir: Path, reset: bool = True) -> dict[str, float]:
         """Full load from data/staged/: schema, nodes, lineage, links, rules."""
@@ -199,5 +226,6 @@ class GraphLoader:
         self.load_lineage(pd.read_parquet(staged_dir / "lineage.parquet"))
         for name in LINKS:
             self.load_link(name, pd.read_parquet(staged_dir / f"link_{name}.parquet"))
-        self.apply_license_rules()
+        self.load_datasets(staged_dir)
+        self.apply_license_rules()  # last, so licenses that only datasets use get their rules too
         return self.timings
