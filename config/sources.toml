@@ -1,8 +1,9 @@
 # Data sources for ModelAtlas.
 #
-# `revision = "main"` means "latest" on the first download. `make data` then
-# writes the exact commit hash it got into data/raw/<source>/manifest.json, and
-# we copy that hash here so everyone (and the prof) rebuilds the same graph.
+# `revision = "main"` means "latest" on the first download. `make data` writes
+# the exact commit it got into data/raw/<source>/manifest.json, then
+# `make data-pin` copies that commit here, so everyone (and the prof) rebuilds
+# the same graph even after the dataset gets new commits on the Hub.
 # TOML instead of YAML because Python reads it with the standard library (tomllib).
 
 [model_cards]
@@ -18,5 +19,5 @@ repo_id = "librarian-bots/dataset_cards_with_metadata"
 repo_type = "dataset"
 revision = "main"
 allow_patterns = ["*.parquet"]
-description = "Every public dataset card on the Hub, used for Dataset nodes (license, languages)"
+description = "Every public dataset card on the Hub; we keep the metadata (license, languages, size, task) of the datasets our models cite"
 license_note = "Dataset cards are written by each dataset's uploader."

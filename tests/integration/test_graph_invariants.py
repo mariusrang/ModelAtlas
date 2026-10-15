@@ -86,3 +86,7 @@ def test_precomputed_depth_matches_a_real_path(db):
         RETURN m.lineage_depth AS stored, max(length(p)) AS walked
         """)[0]
     assert row["stored"] == row["walked"]
+
+
+def test_every_dataset_says_if_it_has_a_card(db):
+    assert _count(db, "MATCH (d:Dataset) WHERE d.listed IS NULL RETURN count(d) AS n") == 0
