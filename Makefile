@@ -87,6 +87,10 @@ predict: ## Predict missing parents (link prediction, needs `make gds`) -> repor
 predict-sample: ## Same on the sample graph (used by CI) -> reports/link_prediction_sample.md
 	$(VENV_PY) -m scripts.link_prediction --sample
 
+.PHONY: bench
+bench: ## Benchmark naive vs optimized Cypher queries -> reports/benchmarks.md
+	$(VENV_PY) -m scripts.benchmark
+
 test: ## Run the whole test suite with coverage (integration tests skip if the stack is down)
 	$(VENV_PY) -m pytest --cov=app --cov=ui --cov=scripts --cov-report=term-missing --cov-report=xml $(PYTEST_ARGS)
 

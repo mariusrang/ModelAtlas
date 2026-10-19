@@ -11,7 +11,7 @@ from tests.synthetic import parsed_frame
 
 CARDS = pd.DataFrame(
     {
-        "datasetId": ["org/chat-data", "org/nc-data", "other/unused"],
+        "datasetId": ["org/chat-data", "org/NC-Data", "other/unused"],
         "author": ["org", "org", "other"],
         "downloads": [100, 5, 1],
         "likes": [3, 0, 0],
@@ -23,7 +23,7 @@ CARDS = pd.DataFrame(
                 "task_categories:text-generation",
                 "size_categories:1K<n<10K",
             ],
-            ["license:cc-by-nc-4.0", "language:xx-not-iso", "region:us"],
+            ["license:cc-by-4.0", "license:cc-by-nc-4.0", "language:xx-not-iso", "region:us"],
             ["license:mit"],
         ],
         "createdAt": ["2024-01-01T00:00:00.000Z", None, "2024-02-02T00:00:00.000Z"],
@@ -41,7 +41,7 @@ def fixture_cards_dir(tmp_path):
 
 def test_parse_dataset_tags():
     parsed = parse_dataset_tags(list(CARDS["tags"][0]))
-    assert parsed.license == "mit"  # lower-cased like model licenses, so both share one License node
+    assert parsed.licenses == ["mit"]  # lower-cased like model licenses, so both share one License node
     assert parsed.languages == ["fr", "en"]
     assert parsed.task_categories == ["text-generation"]
     assert parsed.size_category == "1K<n<10K"
@@ -50,7 +50,8 @@ def test_parse_dataset_tags():
 
 def test_read_cards_keeps_only_cited_datasets_and_skips_card_text(cards_dir):
     cards = read_cards(cards_dir, {"org/chat-data", "org/nc-data", "ghost/never-published"})
-    assert sorted(cards["datasetId"]) == ["org/chat-data", "org/nc-data"]
+    # "org/nc-data" is cited in lower case, the card is "org/NC-Data": same Hub repo
+    assert sorted(cards["datasetId"]) == ["org/NC-Data", "org/chat-data"]
     assert "card" not in cards.columns
 
 
@@ -60,11 +61,18 @@ def test_tables_and_coverage(cards_dir):
     assert stats["datasets_cited"] == 3
     assert stats["datasets_with_card"] == 2
     assert stats["dataset_card_coverage_pct"] == pytest.approx(66.7)
-    assert dict(zip(tables["dataset_license"]["dataset"], tables["dataset_license"]["license"])) == {
-        "org/chat-data": "mit",
-        "org/nc-data": "cc-by-nc-4.0",
-    }
+    pairs = set(zip(tables["dataset_license"]["dataset"], tables["dataset_license"]["license"]))
+    # node ids keep the spelling the models cite; both licenses of org/nc-data are kept
+    assert pairs == {("org/chat-data", "mit"), ("org/nc-data", "cc-by-4.0"), ("org/nc-data", "cc-by-nc-4.0")}
+    assert stats["datasets_with_license"] == 2
+    assert stats["datasets_with_several_licenses"] == 1
     assert sorted(tables["dataset_language"]["language"]) == ["en", "fr"]
+
+
+def test_two_spellings_of_the_same_id_both_get_the_card(cards_dir):
+    tables, stats = enrich_datasets(pd.Series(["org/Chat-Data", "org/chat-data"]), cards_dir)
+    assert sorted(tables["datasets"]["id"]) == ["org/Chat-Data", "org/chat-data"]
+    assert stats["dataset_card_coverage_pct"] == 100.0
 
 
 def test_missing_dump_gives_empty_tables(tmp_path):
