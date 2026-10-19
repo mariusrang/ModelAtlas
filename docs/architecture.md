@@ -55,6 +55,7 @@ flowchart LR
     c --> e["data/staged/*.parquet<br/>+ etl_report.md"]
     e --> f["load.py<br/>constraints first,<br/>UNWIND batches of 5,000"]
     f --> g["validate.py<br/>counts, cycles, constraints<br/>-> load_report.md"]
+    g --> h["graph_algorithms.py (make gds)<br/>PageRank, WCC, Louvain,<br/>Node Similarity, FastRP<br/>-> gds_report.md"]
 ```
 
 Every step can be re-run on its own, and the load is idempotent (`MERGE` everywhere), so running
