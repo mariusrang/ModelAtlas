@@ -81,7 +81,7 @@ Parameters:
 
 ## LIMIT early
 
-Collecting the full ordered result keeps all matching models in memory. LIMIT allows a Top operator or an ordered index scan to keep only the requested rows.
+Collecting the full ordered result keeps all matching models in memory. LIMIT allows a Top operator or an ordered index scan to keep only the requested rows. Both variants still read the same candidates and properties, so db hits can match. Db hits do not count sorting, allocating the collection or copying maps; Top keeps a small candidate set instead.
 
 Measured median speed-up: 1.89x. The optimized median latency was lower, and its db-hit count was unchanged. Small latency differences alone should not be treated as a reliable improvement.
 
