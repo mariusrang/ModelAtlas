@@ -756,7 +756,6 @@ notes = "Data may only be used for computational analysis; models trained on it 
 [cc]
 id = "cc"
 family = "unknown"
-commercial_use = "conditional"
 requires_attribution = true
 share_alike = false
 url = "https://creativecommons.org/licenses/"
