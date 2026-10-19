@@ -2,7 +2,7 @@
 
 from pydantic import BaseModel, Field
 
-from app.domain import Evidence
+from app.domain import Evidence, Relation
 from app.models.catalog import ModelSummary
 
 
@@ -15,10 +15,11 @@ class PathNode(BaseModel):
 
 
 class LineagePath(BaseModel):
-    """One chain from the model up to a root. relations[i] links nodes[i] to nodes[i+1]."""
+    """One chain going up from the model. relations[i] links nodes[i] to nodes[i+1]."""
 
     nodes: list[PathNode]
-    relations: list[str] = Field(examples=[["quantized", "finetune"]])
+    relations: list[Relation] = Field(examples=[["quantized", "finetune"]])
+    complete: bool = Field(default=True, description="False when the path was cut by the depth limit before a root")
 
 
 class LineageResponse(BaseModel):
@@ -28,8 +29,8 @@ class LineageResponse(BaseModel):
     evidence: Evidence = Evidence.VERIFIED
     depth_limit: int
     paths: list[LineagePath]
-    roots: list[str] = Field(description="Distinct root models reached")
-    truncated: bool = Field(description="True if we hit max_paths; merges can multiply paths")
+    roots: list[str] = Field(description="Distinct root models reached within the depth limit")
+    truncated: bool = Field(description="True if some paths were cut by the depth limit or by the max number of paths")
 
 
 class DescendantItem(BaseModel):
@@ -37,7 +38,7 @@ class DescendantItem(BaseModel):
 
     model: ModelSummary
     distance: int = Field(description="Generations below the requested model")
-    relation: str = Field(description="How this model relates to its own parent on the path")
+    relation: Relation = Field(description="How this model relates to its own parent on the path")
 
 
 class DescendantPage(BaseModel):
