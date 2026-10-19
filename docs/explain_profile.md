@@ -4,6 +4,12 @@ Measured on **16 October 2026**, using Neo4j Community **5.26.32**, the SLOTTED 
 and the full local graph: **156,611 Model nodes**, including **6,105 Unlisted nodes**.
 Neo4j runs in Docker Desktop with a 2 GB heap and 2 GB page cache.
 
+Data: the model_cards dump is at commit `ce0b4cd50b6253d526765077de9e8d95e743f086`.
+It is newer than `99b6ce9d9d47f796700745ed9630556c91c00439`, pinned by PR #5
+in `config/sources.toml`. This explains the difference from the reference load
+report on main: 156,611 versus 156,071 Model nodes, and 6,105 versus 6,138 Unlisted nodes.
+
+
 `EXPLAIN` builds a plan without running the query. Its row counts are estimates.
 `PROFILE` runs the query and adds actual rows and database hits to each operator.
 A database hit is a logical storage access, not necessarily a disk read. Cached
@@ -248,11 +254,19 @@ That avoids another index to update during imports and another use of memory and
 storage. We did not measure import overhead or index size, so we do not assign
 numbers to those costs.
 
+
+The author lookup without a Model.author range index is also timed 30 times in
+[the benchmark report](../reports/benchmarks.md), experiment "Author lookup".
+That experiment returns model ids and compares a property scan with an indexed
+Organization lookup plus PUBLISHED_BY; the count query here isolates adding an
+index on Model.author. Their latency numbers therefore should not be compared directly.
+The relative link becomes available when PR #7 is merged.
+
 ## Reproducing the evidence
 
 Start the stack and load the full graph using the README. Open Neo4j Browser at
 `http://127.0.0.1:7474` and connect using the local `.env` credentials. Run sections
-1 through 5 in order, save each **Plan → Text** screenshot, and finish with the
+1 through 5 in order, save each **Plan â†’ Text** screenshot, and finish with the
 cleanup statement above. Record both Browser footer timings; do not substitute
 EXPLAIN planning time for query execution time.
 
