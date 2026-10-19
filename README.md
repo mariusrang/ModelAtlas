@@ -6,21 +6,22 @@
 ![pylint](https://img.shields.io/badge/pylint-10.00-brightgreen)
 ![python](https://img.shields.io/badge/python-3.11%2B-blue)
 
-**A knowledge graph of the open AI model ecosystem, with an agent that always shows its sources.**
+**A Neo4j knowledge graph of the open AI model ecosystem on Hugging Face: who is derived from whom,
+under which license, trained on which data.**
 
-Hugging Face hosts hundreds of thousands of models, and most of them are built on top of other models:
-a fine-tune of a fine-tune, a quantized copy, a merge of three models... Each one has a license, training
-datasets, papers and benchmark scores. ModelAtlas puts all of that in a Neo4j graph so we can answer the
-questions an AI pre-sales / solutions engineer gets every day:
+Most models on Hugging Face are built on other models: a fine-tune of a fine-tune, a quantized copy, a
+merge of three models. Each one declares (or forgets to declare) a license, training datasets and papers.
+We load two public Hugging Face dumps (model cards and dataset cards) into a graph to answer the questions
+an AI pre-sales / solutions engineer gets from clients:
 
-- *Where does this model really come from?* (lineage up to the foundation model)
-- *Can my client use it commercially?* (every license on every ancestor path)
+- *Where does this model come from?* (lineage up to the foundation model)
+- *Can my client use it commercially?* (licenses of the model, of every ancestor and of the training data)
 - *Which French-capable, < 8B, commercially usable model should we start from?*
-- *This GGUF has no parent listed: what is it probably based on?* (ML link prediction)
+- *How are these two models related?* (common ancestor, shortest path)
+- *This GGUF lists no parent: what is it probably based on?* (link prediction, planned)
 
-Every fact we return is labelled `VERIFIED` (declared in a model card), `DERIVED` (one of our rules applied
-to verified data) or `HYPOTHESIS` (guessed by our ML model or the LLM, always with a confidence score).
-We never present a guess as a fact.
+Each answer of the API says how much you can trust it: `VERIFIED` (read from a card), `DERIVED` (one of
+our rules applied to verified facts) or, for the ML and agent steps, `HYPOTHESIS` with a confidence score.
 
 > Course project for *Knowledge Graphs & Graph Data* (AIDAMS 3A), level 3+ (agentic / GraphRAG).
 
@@ -34,22 +35,25 @@ We never present a guess as a fact.
 | Data download + profiling | done |
 | ETL (transform + load into Neo4j) | done |
 | Graph queries + API endpoints | done |
-| GDS + parent-model prediction | planned |
-| LangGraph agent + guardrails | planned |
-| Streamlit UI | skeleton |
+| Second source: dataset cards (training-data licenses) | done |
+| GDS + parent-model prediction | next |
+| LangGraph agent with NL-to-Cypher + guardrails | planned |
+| Streamlit UI, demo notebook | skeleton / planned |
 
 ---
 
 ## Quick start
 
-Requirements: Docker Desktop, Python 3.11+, GNU `make` (on Windows: Git Bash, or `choco install make`).
-No API key is needed: the LLM runs locally with Ollama.
+Requirements: Docker Desktop, Python 3.11+, GNU `make` (on Windows: `winget install ezwinports.make`,
+then reopen the terminal). No API key is needed: the LLM runs locally with Ollama.
 
 ```bash
 git clone https://github.com/mariusrang/ModelAtlas.git
 cd ModelAtlas
-make env           # creates .env from .env.example -> edit the two passwords
+make install       # .venv + dependencies
+make env           # creates .env from .env.example -> change NEO4J_PASSWORD and ADMIN_API_KEY
 make docker-run    # builds and starts Neo4j, Ollama, API, UI and Nginx
+make seed-sample   # small real sample (~1 min), or `make data` + `make seed` for the full graph
 make ollama-pull   # first time only: downloads the local LLM (~4.7 GB)
 ```
 
@@ -67,12 +71,13 @@ Then open:
 
 | Source | What we use it for | Size |
 | --- | --- | --- |
-| [librarian-bots/model_cards_with_metadata](https://huggingface.co/datasets/librarian-bots/model_cards_with_metadata) | Every public model on the Hub: id, author, downloads, likes, tags (license, parents, datasets, papers, languages), task, card text | ~817k rows, 1.5 GB Parquet |
-| [librarian-bots/dataset_cards_with_metadata](https://huggingface.co/datasets/librarian-bots/dataset_cards_with_metadata) | Dataset nodes (license, languages) | Parquet |
+| [librarian-bots/model_cards_with_metadata](https://huggingface.co/datasets/librarian-bots/model_cards_with_metadata) | Every public model on the Hub: id, author, downloads, likes, task, tags (license, parents, datasets, papers, languages) | 861,627 rows, ~1.5 GB Parquet |
+| [librarian-bots/dataset_cards_with_metadata](https://huggingface.co/datasets/librarian-bots/dataset_cards_with_metadata) | License, languages, size and task of the datasets our models cite (we read only those, metadata only) | ~631k rows, ~1 GB Parquet |
 
-Both are free and need no API key. `make data` downloads them and writes a `manifest.json` with the exact
-commit hash and SHA-256 of every file, so the graph can always be rebuilt from the same data version.
-`make profile` then produces [`reports/data_profile.md`](reports/data_profile.md): the numbers behind our
+Both are public and need no API key. `make data` downloads them and writes a `manifest.json` per source
+with the commit hash and the SHA-256 of every file; `make data-pin` then writes those commits into
+[`config/sources.toml`](config/sources.toml), so anyone rebuilds the graph from the same data version.
+`make profile` produces [`reports/data_profile.md`](reports/data_profile.md): the numbers behind our
 modeling and scoping choices.
 
 ### From raw dump to graph
@@ -87,13 +92,18 @@ The transform applies rules from [`config/scope.toml`](config/scope.toml), each 
 
 | Rule | Why (from the profile) |
 | --- | --- |
-| keep models with >= 50 downloads or >= 1 like | 66% of the 861k models have 0 downloads; this keeps ~146k real models |
+| keep models with >= 50 downloads or >= 1 like | 66% of the 861k models have 0 downloads; this keeps 146k real models |
 | add back every ancestor of a kept model | otherwise family trees and license checks would have holes |
-| drop `blockassist` / swarm checkpoints | ~98.6k auto-generated models (11% of the dump) |
+| drop `blockassist` / swarm checkpoints | 105k auto-generated models (12% of the dump) |
 | drop self-loops, break cycles | 1,149 models declare themselves as their own parent |
 | parents missing from the dump become `:Unlisted` nodes | 22% of lineage edges point to a model that is not public anymore |
 | ignore arXiv `1910.09700` | cited by 126k models only because it is in the default card template |
 | precompute depth, descendants, roots | shown on every model page; 99.6% of chains are <= 5 levels deep |
+| read dataset cards only for cited datasets | 15.5k datasets are cited out of ~631k cards |
+
+Result (full graph, [`reports/load_report.md`](reports/load_report.md)): 156,071 models (6,138 of them
+`Unlisted`), 101,781 lineage edges, 43.5k organizations, 15.5k datasets, 9.4k papers, all validation checks
+passed, loaded in about 100 s.
 
 > On Windows, put `MODELATLAS_DATA_DIR=C:\modelatlas-data` in `.env` so the 1.5 GB download is not synced by OneDrive.
 
@@ -101,19 +111,24 @@ The transform applies rules from [`config/scope.toml`](config/scope.toml), each 
 
 ## Graph model
 
+![Graph schema](docs/diagrams/graph_schema.png)
+
 | Nodes | Key | Relationships (from `Model`) |
 | --- | --- | --- |
 | `Model` (+ `Unlisted` label for parents not in the dump) | `id` | `FINETUNED_FROM`, `ADAPTER_OF`, `QUANTIZED_FROM`, `MERGED_FROM` → `Model` |
 | `Organization` | `id` | `PUBLISHED_BY` |
 | `License` (with `family`, `commercial_use` rules) | `id` | `HAS_LICENSE` |
-| `Dataset` | `id` | `TRAINED_ON` |
+| `Dataset` (+ card facts: `listed`, size, task categories) | `id` | `TRAINED_ON`; a dataset also has `HAS_LICENSE` and `SUPPORTS` |
 | `Paper` | `arxiv_id` | `CITES` |
 | `Task` | `id` | `PERFORMS` |
 | `Language` | `code` | `SUPPORTS` |
 | `Architecture` | `id` | `HAS_ARCHITECTURE` |
 
 8 uniqueness constraints, 7 range indexes and 1 fulltext index, all in [`app/database/schema.py`](app/database/schema.py)
-with the query each one serves. Full diagram and modeling rationale: coming in `docs/`.
+with the query each one serves. Why each concept is a node or a property, why four lineage types and not one,
+and the alternatives we rejected: [`docs/modeling.md`](docs/modeling.md). How our schema differs from the one an
+AI assistant proposes from the same description: [`docs/anti_genericity/`](docs/anti_genericity/README.md).
+License rules and their sources: [`docs/licenses.md`](docs/licenses.md).
 
 ---
 
@@ -131,10 +146,12 @@ applied to verified facts) or `HYPOTHESIS` (ML/LLM guess, later steps).
 | `GET /models/{id}` | Model page: publisher, license, datasets, papers, parents, lineage metrics | VERIFIED + DERIVED |
 | `GET /models/{id}/lineage?depth=4` | Every path from the model up to its foundation model(s) | VERIFIED |
 | `GET /models/{id}/descendants?relation=quantized&limit=20` | Models derived from it, keyset-paginated (`next_cursor`) | VERIFIED |
-| `GET /models/{id}/license-check` | Can a company use it commercially, given **every ancestor's** license? | DERIVED |
+| `GET /models/{id}/license-check` | Can a company use it commercially, given **every ancestor's** license and the training data? | DERIVED |
 | `GET /connection?a=...&b=...` | Closest common ancestor, shortest path, shared datasets/papers | DERIVED |
 | `POST /recommend` | Shortlist for a client brief (task, size, language, commercial use) | DERIVED |
 | `GET /organizations/{id}/footprint` | Who builds on an organization's models? | DERIVED |
+| `GET /datasets/{id}` | Dataset card facts and the most downloaded models trained on it | VERIFIED |
+| `POST /admin/license-rules/reload` | Re-apply `config/licenses.toml` without reloading the graph (needs `X-API-Key`) | - |
 
 Model ids keep their slash (`/models/mistralai/Mistral-7B-v0.1/lineage`). Some examples (from cmd):
 
@@ -156,14 +173,16 @@ Design choices, briefly:
   reads run in a READ session with a 10 s timeout.
 - **License rule** (fail-safe): the verdict is the most restrictive status over the model **and all its ancestors**,
   since a fine-tune can't drop its parent's restrictions. Unknown or missing licenses give `needs_review`, never
-  `ok`. Rules live in [`config/licenses.toml`](config/licenses.toml). Informational only, not legal advice.
+  `ok`. A non-commercial training dataset also gives `needs_review` (legal grey zone, not a ban). Rules live in
+  [`config/licenses.toml`](config/licenses.toml). Informational only, not legal advice.
+- **No N+1**: the recommendation checks the licenses of its whole shortlist in one query (`UNWIND $ids`).
 - **Pagination**: keyset on `(downloads, id)` instead of `SKIP`, so page 50 costs the same as page 1.
 
 ---
 
 ## Architecture
 
-Six services run in `docker compose`; only Nginx is published on the network.
+Five services run in `docker compose`; only Nginx is published on the network.
 
 | Service | Image | Port | Role |
 | --- | --- | --- | --- |
@@ -174,7 +193,8 @@ Six services run in `docker compose`; only Nginx is published on the network.
 | `ollama` | `ollama/ollama` | 11434 (localhost only) | Local LLM, no API key |
 
 The UI never talks to Neo4j directly: every query goes through the API, which is where validation,
-guardrails and evidence labels live. (Diagram coming with the graph model PR.)
+guardrails and evidence labels live. Diagrams of the services, the API layers and the ETL pipeline:
+[`docs/architecture.md`](docs/architecture.md).
 
 ---
 
@@ -190,9 +210,10 @@ guardrails and evidence labels live. (Diagram coming with the graph model PR.)
 | `make docker-run` | Build and start the whole stack |
 | `make docker-down` | Stop the stack (data is kept) |
 | `make ollama-pull` | Download the local LLM into the Ollama container |
-| `make data` | Download the raw Hugging Face model-card dump (~1.5 GB, once) |
+| `make data` | Download both raw dumps: model cards + dataset cards (~2.5 GB, once) |
+| `make data-pin` | Pin `config/sources.toml` to the commits you downloaded |
 | `make profile` | Profile the raw dump into `reports/data_profile.md` |
-| `make fixture` | Rebuild the small test fixture from the full dump |
+| `make fixture` | Rebuild the small test fixtures from the full dumps |
 | `make seed` | Build the full graph in Neo4j (transform + load + validate) |
 | `make seed-sample` | Load the small fixture into Neo4j (used by CI) |
 | `make test` | All tests + coverage (integration tests skip if the stack is down) |
@@ -214,6 +235,8 @@ scripts/        ETL, training, benchmarks, Makefile helpers
 tests/          unit/, api/, health/, integration/ (+ agent/ later)
 docker/         Dockerfiles and Nginx config
 config/         versioned config (data sources, license rules, scope)
+docs/           modeling choices, architecture diagrams
+reports/        generated numbers: data profile, ETL and load reports
 .github/        CI workflows, PR template
 ```
 
@@ -221,11 +244,22 @@ config/         versioned config (data sources, license rules, scope)
 
 ## Team
 
-| Member | GitHub |
-| --- | --- |
-| Marius Rang (lead) | [@mariusrang](https://github.com/mariusrang) |
-| Ylias Guetari | [@ylguet](https://github.com/ylguet) |
-| Lucas Magret Delord | [@Lucasmd9](https://github.com/Lucasmd9) |
+| Member | GitHub | Main parts |
+| --- | --- | --- |
+| Marius Rang (lead) | [@mariusrang](https://github.com/mariusrang) | data pipeline, graph API, agent |
+| Ylias Guetari | [@ylguet](https://github.com/ylguet) | license rules, schema diagram, anti-genericity appendix |
+| Lucas Magret Delord | [@Lucasmd9](https://github.com/Lucasmd9) | query benchmarks, EXPLAIN/PROFILE, demo notebook |
+
+Every PR is reviewed by another member before merge ([CONTRIBUTING.md](CONTRIBUTING.md)).
+
+---
+
+## How we used AI assistants
+
+The course allows AI coding assistants, and we used one (Claude) to draft code, Cypher queries and
+documentation. We ran, tested and reviewed everything on the real data ourselves, and we tied each
+modeling choice to a number from our own data profile rather than to a generic schema
+([`docs/modeling.md`](docs/modeling.md)). Each member can explain the parts listed next to their name.
 
 ---
 

@@ -3,6 +3,7 @@
 import pytest
 from fastapi.testclient import TestClient
 
+from app.config import Settings
 from app.dependencies import get_repository
 from app.main import create_app
 from tests.conftest import FakeNeo4jClient
@@ -62,6 +63,13 @@ def test_lineage_lists_paths_and_roots(api):
     assert body["truncated"] is False
 
 
+def test_lineage_cut_by_depth_is_not_reported_as_a_root(api):
+    body = api.get("/models/bob/chat-GGUF/lineage", params={"depth": 1}).json()
+    assert body["paths"][0]["complete"] is False
+    assert body["roots"] == []  # acme/chat is NOT a root, the path was just cut
+    assert body["truncated"] is True
+
+
 def test_root_model_is_its_own_root(api):
     assert api.get("/models/acme/base/lineage").json()["roots"] == ["acme/base"]
 
@@ -107,6 +115,13 @@ def test_license_check_inherits_from_ancestor(api):
     assert "not legal advice" in body["disclaimer"]
 
 
+def test_license_check_flags_non_commercial_training_data(api):
+    body = api.get("/models/acme/chat/license-check").json()
+    assert body["verdict"] == "needs_review"
+    assert body["training_data"][0]["id"] == "ds/one"
+    assert body["training_data"][0]["license"] == "cc-by-nc-4.0"
+
+
 def test_license_check_uses_configured_depth_by_default(api, repo, settings):
     api.get("/models/acme/base/license-check")
     assert repo.calls[-1] == ("license_check", "acme/base", settings.max_traversal_depth)
@@ -124,12 +139,15 @@ def test_connection_needs_two_models(api):
     assert api.get("/connection", params={"a": "acme/base", "b": "acme/base"}).status_code == 400
 
 
-def test_recommend_commercial_drops_bad_lineage(api):
+def test_recommend_commercial_drops_bad_lineage(api, repo):
     body = api.post("/recommend", json={"task": "text-generation", "commercial_use": True, "limit": 5}).json()
-    ids = [r["model"]["id"] for r in body["results"]]
-    assert ids == ["acme/base", "acme/chat"]  # carl/lora is non-commercial, bob/chat-GGUF has no license
-    assert all(r["license_verdict"] == "commercial_use_ok" for r in body["results"])
-    assert body["results"][0]["score"] > body["results"][1]["score"]
+    # carl/lora is non-commercial, bob/chat-GGUF has no license (both filtered in Cypher),
+    # acme/chat is apache-2.0 but trained on a non-commercial dataset -> needs_review -> dropped
+    assert [r["model"]["id"] for r in body["results"]] == ["acme/base"]
+    assert body["results"][0]["license_verdict"] == "commercial_use_ok"
+    # the whole shortlist is checked in ONE query, not one per candidate (no N+1)
+    license_calls = [c for c in repo.calls if c[0].startswith("license_check")]
+    assert license_calls == [("license_check_many", ("acme/base", "acme/chat"), 6)]
 
 
 def test_recommend_without_commercial_skips_license_check(api, repo):
@@ -154,6 +172,41 @@ def test_unknown_organization_is_404(api):
     assert api.get("/organizations/nobody/footprint").status_code == 404
 
 
+def test_dataset_page(api):
+    body = api.get("/datasets/ds/one", params={"limit": 1}).json()
+    assert body["license_info"]["id"] == "cc-by-nc-4.0"
+    assert body["model_count"] == 1
+    assert body["top_models"][0]["id"] == "acme/chat"
+
+
+def test_unknown_dataset_is_404(api):
+    assert api.get("/datasets/nobody/nothing").status_code == 404
+
+
+def test_admin_reload_needs_the_key(api):
+    assert api.post("/admin/license-rules/reload").status_code == 401
+    assert api.post("/admin/license-rules/reload", headers={"X-API-Key": "wrong"}).status_code == 401
+
+
+def test_admin_reload_applies_the_rules(settings):
+    fake = FakeNeo4jClient(rows=[{"n": 3}])
+    app = create_app(settings=settings, db=fake)
+    with TestClient(app) as client:
+        response = client.post("/admin/license-rules/reload", headers={"X-API-Key": "test-key"})
+    assert response.status_code == 200
+    assert response.json()["unknown_licenses"] == 3
+    assert any("SET l += row.props" in query for query, _ in fake.calls)
+
+
+def test_admin_is_disabled_with_the_placeholder_key():
+    placeholder = Settings(_env_file=None, admin_api_key="change-me-too", neo4j_password="test-password")
+    app = create_app(settings=placeholder, db=FakeNeo4jClient())
+    with TestClient(app) as client:
+        response = client.post("/admin/license-rules/reload", headers={"X-API-Key": "change-me-too"})
+    assert response.status_code == 401
+    assert "disabled" in response.json()["detail"]
+
+
 def test_openapi_lists_every_endpoint(api):
     paths = set(api.get("/openapi.json").json()["paths"])
     assert {
@@ -167,4 +220,6 @@ def test_openapi_lists_every_endpoint(api):
         "/models/{model_id}/descendants",
         "/models/{model_id}/license-check",
         "/organizations/{org_id}/footprint",
+        "/datasets/{dataset_id}",
+        "/admin/license-rules/reload",
     } <= paths

@@ -37,11 +37,12 @@ def decode_cursor(cursor: str) -> tuple[int, str]:
         raise BadRequestError("invalid cursor") from exc
 
 
-def to_path(nodes: list[dict | str], rel_types: list[str]) -> LineagePath:
+def to_path(nodes: list[dict | str], rel_types: list[str], complete: bool = True) -> LineagePath:
     """Cypher path map -> LineagePath (nodes can be maps or plain ids)."""
     return LineagePath(
         nodes=[PathNode(**n) if isinstance(n, dict) else PathNode(id=n) for n in nodes],
         relations=[relation_from_type(t) for t in rel_types],
+        complete=complete,
     )
 
 
@@ -57,13 +58,15 @@ class LineageService:
         row = self.repo.lineage_up(model_id, check_depth(depth, self.settings), MAX_PATHS + 1)
         if row is None:
             raise NotFoundError(f"model '{model_id}' is not in the graph")
-        paths = [to_path(p["nodes"], p["rel_types"]) for p in row["paths"]]
+        paths = [to_path(p["nodes"], p["rel_types"], p.get("complete", True)) for p in row["paths"]]
+        roots = sorted({p.nodes[-1].id for p in paths if p.complete})
         return LineageResponse(
             model_id=model_id,
             depth_limit=depth,
             paths=paths[:MAX_PATHS],
-            roots=sorted({p.nodes[-1].id for p in paths}) or [model_id],  # a root is its own root
-            truncated=len(paths) > MAX_PATHS,
+            # no path at all = the model has no parent, so it is its own root
+            roots=roots if paths else [model_id],
+            truncated=len(paths) > MAX_PATHS or not all(p.complete for p in paths),
         )
 
     def descendants(self, model_id: str, depth: int, relation: Relation | None, limit: int, cursor: str | None):

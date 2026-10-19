@@ -29,6 +29,19 @@ def ancestor(model_id, path, rel_types, license_row=None, unlisted=False):
     }
 
 
+def dataset_row(dataset_id, used_by, distance, license_row=None, listed=True):
+    """A row shaped like one item of license_check.cypher's `datasets`."""
+    return {
+        "id": dataset_id,
+        "used_by": used_by,
+        "distance": distance,
+        "listed": listed,
+        "license": license_row["id"] if license_row else None,
+        "family": license_row["family"] if license_row else None,
+        "commercial_use": license_row["commercial_use"] if license_row else None,
+    }
+
+
 class FakeRepository:
     """Same method names as GraphRepository; records every call."""
 
@@ -77,11 +90,12 @@ class FakeRepository:
             return None
         if model_id != "bob/chat-GGUF":
             return {"id": model_id, "paths": []}
-        nodes = [
-            {"id": i, "downloads": MODELS[i]["downloads"], "unlisted": False}
-            for i in ("bob/chat-GGUF", "acme/chat", "acme/base")
-        ]
-        return {"id": model_id, "paths": [{"nodes": nodes, "rel_types": ["QUANTIZED_FROM", "FINETUNED_FROM"]}]}
+        # bob/chat-GGUF -quantized-> acme/chat -finetune-> acme/base, cut at `depth` like the real query
+        ids = ["bob/chat-GGUF", "acme/chat", "acme/base"][: depth + 1]
+        nodes = [{"id": i, "downloads": MODELS[i]["downloads"], "unlisted": False} for i in ids]
+        rel_types = ["QUANTIZED_FROM", "FINETUNED_FROM"][: len(ids) - 1]
+        path = {"nodes": nodes, "rel_types": rel_types, "complete": ids[-1] == "acme/base"}
+        return {"id": model_id, "paths": [path]}
 
     def descendants(self, model_id, depth, params):
         self.calls.append(("descendants", model_id, depth, params))
@@ -100,6 +114,9 @@ class FakeRepository:
 
     def license_check(self, model_id, depth):
         self.calls.append(("license_check", model_id, depth))
+        return self._license_row(model_id)
+
+    def _license_row(self, model_id):
         if model_id not in MODELS:
             return None
         ancestors = {
@@ -114,7 +131,30 @@ class FakeRepository:
             ],
             "carl/lora": [ancestor("acme/base", ["carl/lora", "acme/base"], ["ADAPTER_OF"], APACHE)],
         }
-        return {"id": model_id, "license": self.licenses[model_id], "ancestors": ancestors.get(model_id, [])}
+        datasets = {"acme/chat": [dataset_row("ds/one", "acme/chat", 0, NON_COMMERCIAL)]}
+        return {
+            "id": model_id,
+            "lineage_depth": len(ancestors.get(model_id, [])),
+            "license": self.licenses[model_id],
+            "ancestors": ancestors.get(model_id, []),
+            "datasets": datasets.get(model_id, []),
+        }
+
+    def license_check_many(self, model_ids, depth):
+        self.calls.append(("license_check_many", tuple(model_ids), depth))
+        return [self._license_row(i) for i in model_ids if i in MODELS]
+
+    def dataset_detail(self, dataset_id, limit):
+        self.calls.append(("dataset_detail", dataset_id, limit))
+        if dataset_id != "ds/one":
+            return None
+        return {
+            "dataset": {"id": "ds/one", "author": "ds", "downloads": 42, "listed": True, "task_categories": ["text"]},
+            "license": NON_COMMERCIAL,
+            "languages": ["en"],
+            "model_count": 1,
+            "top_models": [{**MODELS["acme/chat"], "unlisted": False, "license": "apache-2.0"}][:limit],
+        }
 
     def connection(self, model_a, model_b, depth):
         self.calls.append(("connection", model_a, model_b, depth))

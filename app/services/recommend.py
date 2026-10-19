@@ -27,7 +27,7 @@ def reasons_for(row: dict, brief: RecommendRequest, verdict: Verdict | None) -> 
     if brief.language:
         reasons.append(f"declares support for '{brief.language}'")
     if verdict is not None:
-        reasons.append(f"license check on the whole lineage: {verdict.value}")
+        reasons.append(f"license check on the lineage and training data: {verdict.value}")
     if model.get("descendant_count"):
         reasons.append(f"{model['descendant_count']} models derived from it (well-adopted base)")
     return reasons
@@ -53,12 +53,15 @@ class RecommendService:
             }
         )
         rows.sort(key=lambda r: popularity_score(r["model"]["downloads"], r["model"]["likes"]), reverse=True)
+        # The candidate's own license allows it (filtered in Cypher); its ancestors
+        # and training data must too. One batched query for the whole pool.
+        checks = self.licenses.check_many([r["model"]["id"] for r in rows]) if brief.commercial_use else {}
         results = []
         for row in rows:
             verdict = None
             if brief.commercial_use:
-                # The candidate's own license allows it; the ancestors must too.
-                verdict = self.licenses.check(row["model"]["id"]).verdict
+                check = checks.get(row["model"]["id"])
+                verdict = check.verdict if check else Verdict.NEEDS_REVIEW
                 if verdict not in ACCEPTED:
                     continue
             results.append(

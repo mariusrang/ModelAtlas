@@ -15,7 +15,7 @@ from app import __version__
 from app.config import Settings, get_settings
 from app.database.neo4j_client import Neo4jClient
 from app.errors import register_error_handlers
-from app.routers import graph, health, models
+from app.routers import admin, datasets, graph, health, models
 
 logger = logging.getLogger("modelatlas")
 
@@ -68,6 +68,8 @@ def create_app(settings: Settings | None = None, db: Neo4jClient | None = None) 
     application.include_router(health.router)
     application.include_router(models.router)
     application.include_router(graph.router)
+    application.include_router(datasets.router)
+    application.include_router(admin.router)
     return application
 
 

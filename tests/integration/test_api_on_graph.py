@@ -127,3 +127,34 @@ def test_organization_footprint_counts_own_models(graph):
     body = api.get(f"/organizations/{org_id}/footprint", params={"depth": 2}).json()
     expected = db.read("MATCH (:Organization {id: $id})<-[:PUBLISHED_BY]-(m) RETURN count(m) AS n", {"id": org_id})
     assert body["own_models"] == expected[0]["n"]
+
+
+def test_lineage_roots_are_real_roots(graph):
+    api, db, pair = graph
+    body = api.get(f"/models/{pair['child']}/lineage", params={"depth": 1}).json()
+    for root in body["roots"]:
+        parents = db.read(f"MATCH (:Model {{id: $id}})-[:{LINEAGE_PATTERN}]->(p) RETURN count(p) AS n", {"id": root})
+        assert parents[0]["n"] == 0, f"{root} is reported as a root but has a parent"
+
+
+def test_dataset_page_matches_the_graph(graph):
+    api, db, _ = graph
+    top = db.read(
+        "MATCH (d:Dataset)<-[:TRAINED_ON]-(m:Model) RETURN d.id AS id, count(m) AS n ORDER BY n DESC, id LIMIT 1"
+    )
+    if not top:
+        pytest.skip("no TRAINED_ON relationship in this graph")
+    body = api.get(f"/datasets/{top[0]['id']}", params={"limit": 5}).json()
+    assert body["model_count"] == top[0]["n"]
+    downloads = [m["downloads"] or 0 for m in body["top_models"]]
+    assert downloads == sorted(downloads, reverse=True)
+
+
+def test_license_check_lists_the_model_own_datasets(graph):
+    api, db, _ = graph
+    row = db.read("MATCH (m:Model)-[:TRAINED_ON]->(d:Dataset) RETURN m.id AS model, d.id AS dataset LIMIT 1")
+    if not row:
+        pytest.skip("no TRAINED_ON relationship in this graph")
+    body = api.get(f"/models/{row[0]['model']}/license-check").json()
+    own = [d for d in body["training_data"] if d["distance"] == 0]
+    assert row[0]["dataset"] in [d["id"] for d in own]

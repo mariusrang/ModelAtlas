@@ -42,8 +42,16 @@ class GraphRepository:
         return self._all("descendants", {"id": model_id, **params}, depth)
 
     def license_check(self, model_id: str, depth: int) -> dict | None:
-        """Own license + every ancestor's license with the path to it."""
-        return self._one("license_check", {"id": model_id}, depth)
+        """Own license, every ancestor's license and the training datasets' licenses."""
+        return self._one("license_check", {"ids": [model_id]}, depth)
+
+    def license_check_many(self, model_ids: list[str], depth: int) -> list[dict]:
+        """Same as license_check for a whole list, in a single query."""
+        return self._all("license_check", {"ids": model_ids}, depth)
+
+    def dataset_detail(self, dataset_id: str, limit: int) -> dict | None:
+        """A dataset with its license, languages and top models trained on it."""
+        return self._one("dataset_detail", {"id": dataset_id, "limit": limit})
 
     def connection(self, model_a: str, model_b: str, depth: int) -> dict | None:
         """Common ancestor, shortest path and shared datasets/papers of two models."""
