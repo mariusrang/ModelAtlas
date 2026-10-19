@@ -1,5 +1,5 @@
 # ETL report: transform step
-Source: `model_cards dump`, built 2026-10-14T19:07:13+00:00.
+Source: `model_cards dump`, built 2026-10-19T08:50:06+00:00.
 ## What we kept and dropped
 | step | count |
 |---|---|
@@ -14,6 +14,10 @@ Source: `model_cards dump`, built 2026-10-14T19:07:13+00:00.
 | ancestors added | 3,784 |
 | unlisted parents | 6,138 |
 | lineage edges | 101,781 |
+| datasets cited | 15,495 |
+| datasets with card | 9,400 |
+| dataset card coverage pct | 60.7 |
+| datasets with license | 7,085 |
 ## Staged tables
 | table | rows |
 |---|---|
@@ -27,3 +31,6 @@ Source: `model_cards dump`, built 2026-10-14T19:07:13+00:00.
 | link_paper | 42,305 |
 | link_language | 206,012 |
 | link_architecture | 67,461 |
+| datasets | 9,400 |
+| dataset_license | 7,085 |
+| dataset_language | 15,163 |
