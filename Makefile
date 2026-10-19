@@ -2,7 +2,7 @@
 # Works on Linux/macOS and on Windows (Git Bash or any shell with GNU make).
 
 .DEFAULT_GOAL := help
-.PHONY: help venv install run ui env docker-build docker-run docker-down docker-logs ollama-pull data data-pin profile fixture seed seed-sample gds gds-sample predict predict-sample \
+.PHONY: help venv install run ui env docker-build docker-run docker-down docker-logs ollama-pull data data-pin profile fixture seed seed-sample gds gds-sample predict predict-sample agent-eval \
         test test-unit test-integration coverage lint format clean tree
 
 # --- Python paths (the venv layout differs on Windows) ---
@@ -86,6 +86,9 @@ predict: ## Predict missing parents (link prediction, needs `make gds`) -> repor
 
 predict-sample: ## Same on the sample graph (used by CI) -> reports/link_prediction_sample.md
 	$(VENV_PY) -m scripts.link_prediction --sample
+
+agent-eval: ## Run the agent on config/agent_eval.toml (needs the stack + make ollama-pull) -> reports/agent_eval.md
+	$(VENV_PY) -m scripts.evaluate_agent
 
 test: ## Run the whole test suite with coverage (integration tests skip if the stack is down)
 	$(VENV_PY) -m pytest --cov=app --cov=ui --cov=scripts --cov-report=term-missing --cov-report=xml $(PYTEST_ARGS)
