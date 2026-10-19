@@ -1,6 +1,10 @@
 # Query benchmarks
 
 Measured at 2026-10-16T12:39:36+00:00 on Neo4j 5.26.32, with 156,611 Model nodes.
+Data: model_cards dump at commit `ce0b4cd50b6253d526765077de9e8d95e743f086` (local download manifest).
+Node counts depend on this snapshot and can differ from the repository's reference load report.
+The reference report on main has 156,071 models; the newer snapshot measured here has 156,611.
+PR #5 pins the older model_cards commit `99b6ce9d9d47f796700745ed9630556c91c00439` in `config/sources.toml`.
 Each variant has 3 warm-up runs and 30 timed runs. p50 and p95 use linear interpolation. Latency is client wall time including all returned records. Execution order alternates each pair. PROFILE runs separately; db hits are summed over its whole tree.
 All paired answers are checked, including row order, warm-ups and the PROFILE run. The literal test checks every id pair. A naive traversal timeout is the only allowed exception. The 20 s limit is a server transaction timeout, not a hard client deadline.
 

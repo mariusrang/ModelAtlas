@@ -22,6 +22,7 @@ from neo4j.exceptions import Neo4jError
 from app.config import Settings
 from app.database.neo4j_client import Neo4jClient
 from app.domain import LINEAGE_PATTERN
+from scripts.etl.sources import RAW_DIR
 
 REPORTS_DIR = Path(__file__).resolve().parents[1] / "reports"
 WARMUPS = 3
@@ -80,6 +81,13 @@ def percentile(values: list[float], percent: float) -> float:
 def total_db_hits(profile: dict[str, Any]) -> int:
     """Sum dbHits over an entire driver PROFILE tree, including its root."""
     return int(profile.get("dbHits", 0)) + sum(total_db_hits(child) for child in profile.get("children", []))
+
+
+def data_commit(manifest: Path = RAW_DIR / "model_cards" / "manifest.json") -> str:
+    """Read the local input revision without inventing provenance when it is missing."""
+    if not manifest.exists():
+        return "unrecorded (local manifest missing)"
+    return json.loads(manifest.read_text(encoding="utf-8"))["commit"]
 
 
 def speedup(naive: Measurement, optimized: Measurement) -> str:
@@ -264,6 +272,7 @@ class BenchmarkRunner:
             ],
             "models": self.client.read("MATCH (m:Model) RETURN count(m) AS count")[0]["count"],
             "runs": self.runs,
+            "data_commit": data_commit(),
         }
         return build_experiments(params), metadata
 
@@ -384,6 +393,8 @@ def render_markdown(results: list[BenchmarkResult], metadata: dict[str, Any]) ->
             f"Measured at {metadata['date']} on Neo4j {metadata['neo4j_version']}, "
             f"with {metadata['models']:,} Model nodes."
         ),
+        f"Data: model_cards dump at commit `{metadata.get('data_commit', 'unrecorded')}` (local download manifest).",
+        "Node counts depend on this snapshot and can differ from the repository's reference load report.",
         (
             f"Each variant has {WARMUPS} warm-up runs and {metadata['runs']} timed runs. "
             "p50 and p95 use linear interpolation. Latency is client wall time including all returned records. "
@@ -502,6 +513,7 @@ def write_reports(results: list[BenchmarkResult], metadata: dict[str, Any], dire
                 "neo4j_version",
                 "models",
                 "runs",
+                "data_commit",
                 "experiment",
                 "variant",
                 "p50_ms",
@@ -518,6 +530,7 @@ def write_reports(results: list[BenchmarkResult], metadata: dict[str, Any], dire
                 writer.writerow(
                     [
                         *(metadata[key] for key in ("date", "neo4j_version", "models", "runs")),
+                        metadata.get("data_commit", "unrecorded"),
                         result.experiment.name,
                         variant,
                         metrics.p50_ms,

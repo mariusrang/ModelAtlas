@@ -1,6 +1,7 @@
 """Benchmark statistics, correctness checks and reports without a real Neo4j."""
 
 import csv
+import json
 from dataclasses import replace
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -19,6 +20,7 @@ from scripts.benchmark import (
     Experiment,
     Measurement,
     build_experiments,
+    data_commit,
     describe_outcome,
     main,
     percentile,
@@ -65,6 +67,14 @@ def test_db_hits_include_root_and_all_branches() -> None:
     profile = {"dbHits": 2, "children": [{"dbHits": 3, "children": [{"dbHits": 5}]}, {"children": [{"dbHits": 7}]}]}
     assert total_db_hits(profile) == 17
     assert total_db_hits({}) == 0
+
+
+def test_data_commit_comes_from_manifest(tmp_path: Path) -> None:
+    """Keep the measured dump revision independent of the configured branch name."""
+    manifest = tmp_path / "manifest.json"
+    manifest.write_text(json.dumps({"commit": "a" * 40, "requested_revision": "main"}), encoding="utf-8")
+    assert data_commit(manifest) == "a" * 40
+    assert data_commit(tmp_path / "missing.json") == "unrecorded (local manifest missing)"
 
 
 def test_plan_operators_follow_leaves_before_root() -> None:
@@ -238,12 +248,13 @@ def test_reports_include_complete_metrics_and_timeouts(experiment: Experiment, t
     """Keep Markdown and CSV consistent, including missing values and run metadata."""
     result = BenchmarkResult(experiment, Measurement(8.0, 10.0, 1, 42), Measurement(2.0, 3.0, 1, 2))
     timeout = replace(result, experiment=replace(experiment, name="Timeout"), naive=Measurement(status="timeout"))
-    metadata = {"date": "2026-10-16", "neo4j_version": "5.26", "models": 156611, "runs": 30}
+    metadata = {"date": "2026-10-16", "neo4j_version": "5.26", "models": 156611, "runs": 30, "data_commit": "a" * 40}
     markdown = render_markdown([result, timeout], metadata)
     assert "| Example | 8.000 | 2.000 | 4.00x | 42 | 2 |" in markdown
     assert "| Example | naive | 8.000 | 10.000 | 1 | 42 | ok |" in markdown
     assert "| Timeout | timeout | 2.000 | n/a | timeout | 2 |" in markdown
     assert "156,611 Model nodes" in markdown
+    assert "a" * 40 in markdown
     assert "Use an index." in markdown
     write_reports([result, timeout], metadata, tmp_path)
     assert (tmp_path / "benchmarks.md").read_text(encoding="utf-8") == markdown
@@ -252,6 +263,7 @@ def test_reports_include_complete_metrics_and_timeouts(experiment: Experiment, t
     assert len(rows) == 4
     assert rows[0]["p95_ms"] == "10.0"
     assert rows[0]["runs"] == "30"
+    assert rows[0]["data_commit"] == "a" * 40
     assert rows[2]["status"] == "timeout"
     assert rows[2]["p50_ms"] == ""
 
