@@ -244,6 +244,22 @@ def test_query_pairs_preserve_ties_and_traversal_horizon() -> None:
     assert "*1..6" in experiments[5].optimized_cypher
 
 
+def test_traversal_depth_is_shared_by_both_variants() -> None:
+    """Changing the horizon must change both the filter and the expansion bound."""
+    experiment = build_experiments({"depth": 3})[5]
+    assert experiment.params["depth"] == 3
+    assert "length(path) <= $depth" in experiment.naive_cypher
+    assert "*1..3" in experiment.optimized_cypher
+    assert "*1..6" not in experiment.optimized_cypher
+
+
+@pytest.mark.parametrize("depth", [0, 13, True, "6", "6]->() DELETE m //"])
+def test_traversal_depth_rejects_invalid_query_structure(depth: object) -> None:
+    """Only a validated integer may be embedded in the Cypher range syntax."""
+    with pytest.raises(ValueError, match="integer in 1..12"):
+        build_experiments({"depth": depth})
+
+
 def test_reports_include_complete_metrics_and_timeouts(experiment: Experiment, tmp_path: Path) -> None:
     """Keep Markdown and CSV consistent, including missing values and run metadata."""
     result = BenchmarkResult(experiment, Measurement(8.0, 10.0, 1, 42), Measurement(2.0, 3.0, 1, 2))

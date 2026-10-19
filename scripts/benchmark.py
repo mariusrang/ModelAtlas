@@ -106,6 +106,10 @@ def plan_operators(profile: dict[str, Any]) -> tuple[str, ...]:
 
 def build_experiments(params: dict[str, Any]) -> list[Experiment]:
     """Define the seven comparisons with stable ordering and shared parameters."""
+    depth = params.get("depth", 6)
+    if isinstance(depth, bool) or not isinstance(depth, int) or not 1 <= depth <= 12:
+        raise ValueError("Traversal depth must be an integer in 1..12")
+    params = {**params, "depth": depth}
     lineage = f"MATCH (c:Model)-[:{LINEAGE_PATTERN}*]->(m:Model {{id:$root}})"
     return [
         Experiment(
@@ -186,7 +190,7 @@ def build_experiments(params: dict[str, Any]) -> list[Experiment]:
         Experiment(
             "Bounded traversal",
             (
-                "Both variants return distinct descendants within six hops. The naive pattern expands without "
+                f"Both variants return distinct descendants within {depth} hops. The naive pattern expands without "
                 "a bound and filters path length afterwards; the optimized pattern puts the bound in the expansion. "
                 "An unrestricted result would include deeper descendants and would be a different answer. "
                 "The naive variant has a 20 s server transaction timeout. Breadth-first pruning checks and "
@@ -197,7 +201,7 @@ def build_experiments(params: dict[str, Any]) -> list[Experiment]:
                 "WHERE length(path) <= $depth RETURN DISTINCT c.id AS id ORDER BY id"
             ),
             (
-                f"MATCH (c:Model)-[:{LINEAGE_PATTERN}*1..6]->(m:Model {{id:$root}}) "
+                f"MATCH (c:Model)-[:{LINEAGE_PATTERN}*1..{depth}]->(m:Model {{id:$root}}) "
                 "RETURN DISTINCT c.id AS id ORDER BY id"
             ),
             params,
