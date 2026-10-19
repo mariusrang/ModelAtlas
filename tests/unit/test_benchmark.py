@@ -272,6 +272,9 @@ def test_reports_include_complete_metrics_and_timeouts(experiment: Experiment, t
     assert "156,611 Model nodes" in markdown
     assert "a" * 40 in markdown
     assert "Use an index." in markdown
+    assert markdown.count("```json") == 1
+    overridden = replace(result, experiment=replace(experiment, params={"root": "another/model"}))
+    assert '"root": "another/model"' in render_markdown([result, overridden], metadata)
     write_reports([result, timeout], metadata, tmp_path)
     assert (tmp_path / "benchmarks.md").read_text(encoding="utf-8") == markdown
     with (tmp_path / "benchmarks.csv").open(encoding="utf-8", newline="") as handle:

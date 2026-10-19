@@ -3,12 +3,30 @@
 Measured at 2026-10-16T12:39:36+00:00 on Neo4j 5.26.32, with 156,611 Model nodes.
 Data: model_cards dump at commit `ce0b4cd50b6253d526765077de9e8d95e743f086` (local download manifest).
 Node counts depend on this snapshot and can differ from the repository's reference load report.
-The reference report on main has 156,071 models; the newer snapshot measured here has 156,611.
-PR #5 pins the older model_cards commit `99b6ce9d9d47f796700745ed9630556c91c00439` in `config/sources.toml`.
 Each variant has 3 warm-up runs and 30 timed runs. p50 and p95 use linear interpolation. Latency is client wall time including all returned records. Execution order alternates each pair. PROFILE runs separately; db hits are summed over its whole tree.
 All paired answers are checked, including row order, warm-ups and the PROFILE run. The literal test checks every id pair. A naive traversal timeout is the only allowed exception. The 20 s limit is a server transaction timeout, not a hard client deadline.
 
 These are warm-cache laptop measurements, not universal speed guarantees. The cache is not cleared, and compilation is not isolated. No index is created or removed. A speed-up below 1.00x means the optimized variant was slower.
+
+## Shared parameters
+
+These inputs apply to every pair unless an experiment lists an override.
+
+```json
+{
+  "author": "Qwen",
+  "org": "Qwen",
+  "license": "apache-2.0",
+  "task": "text-generation",
+  "limit": 10,
+  "offset": 5000,
+  "page_size": 20,
+  "last_downloads": 17342,
+  "last_id": "OpenMed/OpenMed-ZeroShot-NER-Species-Multi-209M",
+  "root": "Qwen/Qwen2.5-7B",
+  "depth": 6
+}
+```
 
 | Experiment | Naive p50 ms | Optimized p50 ms | Speed-up | Naive db hits | Optimized db hits |
 | --- | ---: | ---: | ---: | ---: | ---: |
@@ -61,23 +79,6 @@ Observed operators (leaves first): NodeUniqueIndexSeek, Expand(All), Filter, Pro
 MATCH (:Organization {id:$author})<-[:PUBLISHED_BY]-(m:Model) RETURN m.id AS id ORDER BY id
 ```
 
-Parameters:
-
-```json
-{
-  "author": "Qwen",
-  "org": "Qwen",
-  "license": "apache-2.0",
-  "task": "text-generation",
-  "limit": 10,
-  "offset": 5000,
-  "page_size": 20,
-  "last_downloads": 17342,
-  "last_id": "OpenMed/OpenMed-ZeroShot-NER-Species-Multi-209M",
-  "root": "Qwen/Qwen2.5-7B",
-  "depth": 6
-}
-```
 
 ## LIMIT early
 
@@ -101,23 +102,6 @@ Observed operators (leaves first): NodeIndexSeek, CacheProperties, Projection, T
 MATCH (m:Model {task:$task}) RETURN m.id AS id, m.downloads AS downloads ORDER BY downloads DESC, id LIMIT $limit
 ```
 
-Parameters:
-
-```json
-{
-  "author": "Qwen",
-  "org": "Qwen",
-  "license": "apache-2.0",
-  "task": "text-generation",
-  "limit": 10,
-  "offset": 5000,
-  "page_size": 20,
-  "last_downloads": 17342,
-  "last_id": "OpenMed/OpenMed-ZeroShot-NER-Species-Multi-209M",
-  "root": "Qwen/Qwen2.5-7B",
-  "depth": 6
-}
-```
 
 ## Literal vs parameter
 
@@ -141,23 +125,6 @@ Observed operators (leaves first): NodeUniqueIndexSeek, Projection, ProduceResul
 MATCH (m:Model {id:$id}) RETURN m.id AS id
 ```
 
-Parameters:
-
-```json
-{
-  "author": "Qwen",
-  "org": "Qwen",
-  "license": "apache-2.0",
-  "task": "text-generation",
-  "limit": 10,
-  "offset": 5000,
-  "page_size": 20,
-  "last_downloads": 17342,
-  "last_id": "OpenMed/OpenMed-ZeroShot-NER-Species-Multi-209M",
-  "root": "Qwen/Qwen2.5-7B",
-  "depth": 6
-}
-```
 
 ## Cartesian product
 
@@ -181,23 +148,6 @@ Observed operators (leaves first): NodeUniqueIndexSeek, Expand(All), Filter, Exp
 MATCH (:Organization {id:$org})<-[:PUBLISHED_BY]-(m:Model)-[:HAS_LICENSE]->(:License {id:$license}) RETURN DISTINCT m.id AS id ORDER BY id
 ```
 
-Parameters:
-
-```json
-{
-  "author": "Qwen",
-  "org": "Qwen",
-  "license": "apache-2.0",
-  "task": "text-generation",
-  "limit": 10,
-  "offset": 5000,
-  "page_size": 20,
-  "last_downloads": 17342,
-  "last_id": "OpenMed/OpenMed-ZeroShot-NER-Species-Multi-209M",
-  "root": "Qwen/Qwen2.5-7B",
-  "depth": 6
-}
-```
 
 ## Deep pagination
 
@@ -221,27 +171,10 @@ Observed operators (leaves first): NodeIndexSeekByRange, Filter, Projection, Par
 MATCH (m:Model) WHERE m.downloads <= $last_downloads AND (m.downloads < $last_downloads OR m.id > $last_id) RETURN m.id AS id, m.downloads AS downloads ORDER BY downloads DESC, id LIMIT $page_size
 ```
 
-Parameters:
-
-```json
-{
-  "author": "Qwen",
-  "org": "Qwen",
-  "license": "apache-2.0",
-  "task": "text-generation",
-  "limit": 10,
-  "offset": 5000,
-  "page_size": 20,
-  "last_downloads": 17342,
-  "last_id": "OpenMed/OpenMed-ZeroShot-NER-Species-Multi-209M",
-  "root": "Qwen/Qwen2.5-7B",
-  "depth": 6
-}
-```
 
 ## Bounded traversal
 
-Both variants return distinct descendants within six hops. The naive pattern expands without a bound and filters path length afterwards; the optimized pattern puts the bound in the expansion. An unrestricted result would include deeper descendants and would be a different answer. The naive variant has a 20 s server transaction timeout. Breadth-first pruning checks and deduplicates nodes; on a small family, this can increase db hits despite the depth cap.
+Both variants return distinct descendants within 6 hops. The naive pattern expands without a bound and filters path length afterwards; the optimized pattern puts the bound in the expansion. An unrestricted result would include deeper descendants and would be a different answer. The naive variant has a 20 s server transaction timeout. Breadth-first pruning checks and deduplicates nodes; on a small family, this can increase db hits despite the depth cap.
 
 Measured median speed-up: 1.00x. The optimized median latency was not lower, and its db-hit count was higher. Small latency differences alone should not be treated as a reliable improvement.
 
@@ -261,23 +194,6 @@ Observed operators (leaves first): NodeUniqueIndexSeek, VarLengthExpand(Pruning,
 MATCH (c:Model)-[:FINETUNED_FROM|ADAPTER_OF|QUANTIZED_FROM|MERGED_FROM*1..6]->(m:Model {id:$root}) RETURN DISTINCT c.id AS id ORDER BY id
 ```
 
-Parameters:
-
-```json
-{
-  "author": "Qwen",
-  "org": "Qwen",
-  "license": "apache-2.0",
-  "task": "text-generation",
-  "limit": 10,
-  "offset": 5000,
-  "page_size": 20,
-  "last_downloads": 17342,
-  "last_id": "OpenMed/OpenMed-ZeroShot-NER-Species-Multi-209M",
-  "root": "Qwen/Qwen2.5-7B",
-  "depth": 6
-}
-```
 
 ## Precomputed descendants
 
@@ -301,23 +217,6 @@ Observed operators (leaves first): NodeUniqueIndexSeek, Projection, ProduceResul
 MATCH (m:Model {id:$root}) RETURN m.descendant_count AS descendants
 ```
 
-Parameters:
-
-```json
-{
-  "author": "Qwen",
-  "org": "Qwen",
-  "license": "apache-2.0",
-  "task": "text-generation",
-  "limit": 10,
-  "offset": 5000,
-  "page_size": 20,
-  "last_downloads": 17342,
-  "last_id": "OpenMed/OpenMed-ZeroShot-NER-Species-Multi-209M",
-  "root": "Qwen/Qwen2.5-7B",
-  "depth": 6
-}
-```
 
 For the literal pair, replace `__LITERAL__` with a JSON-quoted id from the first 30 Model ids in ascending order; supply the same id as `$id` to the parameterized query. The list cycles if more than 30 calls are requested.
 

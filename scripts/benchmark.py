@@ -392,6 +392,7 @@ def describe_outcome(result: BenchmarkResult) -> str:
 
 def render_markdown(results: list[BenchmarkResult], metadata: dict[str, Any]) -> str:
     """Render measured medians, complete metrics and reproducible query pairs."""
+    shared = results[0].experiment.params if results else {}
     lines = [
         "# Query benchmarks",
         "",
@@ -417,6 +418,14 @@ def render_markdown(results: list[BenchmarkResult], metadata: dict[str, Any]) ->
             "The cache is not cleared, and compilation is not isolated. No index is created or removed. "
             "A speed-up below 1.00x means the optimized variant was slower."
         ),
+        "",
+        "## Shared parameters",
+        "",
+        "These inputs apply to every pair unless an experiment lists an override.",
+        "",
+        "```json",
+        json.dumps(shared, indent=2),
+        "```",
         "",
         "| Experiment | Naive p50 ms | Optimized p50 ms | Speed-up | Naive db hits | Optimized db hits |",
         "| --- | ---: | ---: | ---: | ---: | ---: |",
@@ -480,13 +489,11 @@ def render_markdown(results: list[BenchmarkResult], metadata: dict[str, Any]) ->
                 result.experiment.optimized_cypher,
                 "```",
                 "",
-                "Parameters:",
-                "",
-                "```json",
-                json.dumps(result.experiment.params, indent=2),
-                "```",
             ]
         )
+        overrides = {key: value for key, value in result.experiment.params.items() if value != shared.get(key)}
+        if overrides:
+            lines.extend(["Parameter overrides:", "", "```json", json.dumps(overrides, indent=2), "```"])
     lines.extend(
         [
             "",
