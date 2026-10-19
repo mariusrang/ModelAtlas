@@ -241,6 +241,30 @@ guess the missing ones. Code: [`scripts/link_prediction.py`](scripts/link_predic
    still gives **80 % top-1 precision on validation**. These edges are never mixed with the declared lineage:
    `/lineage` and `/license-check` ignore them, `/models/{id}/predicted-parents` returns them as `HYPOTHESIS`.
 
+Results on the full graph (4,000 test children created after the training period, run time about 3 min):
+
+| Ranker | AUC | Hits@1 | Hits@5 | MRR |
+| --- | --- | --- | --- | --- |
+| Name-only baseline | 0.72 | 0.16 | 0.39 | 0.27 |
+| Logistic regression | 0.93 | 0.39 | 0.61 | 0.48 |
+| **Gradient boosting** | **0.95** | **0.44** | **0.62** | **0.52** |
+| Gradient boosting + name rule (what we write) | 0.75 | 0.35 | 0.50 | 0.42 |
+
+- The learned rankers find the declared parent first **2.7 times more often** than the name baseline. The
+  ceiling is 0.675: for a third of the children the real parent shares no rare name token, so it is not even
+  a candidate (renamed fine-tunes, merges).
+- Popularity of the candidate (likes, downloads) and name overlap matter most; content embedding and shared
+  datasets add little, because most cards declare no dataset.
+- Our first run wrote absurd pairs with a score of 1.0 (`facebook/bart-large-mnli` → a DeBERTa model): old
+  models without a creation date and popular candidates with no name in common. We added a **name rule** (the
+  parent must carry at least half of the child's name information) and skip undated models. It costs some
+  Hits@1 but every written pair now looks like a real copy (`Qwen/Qwen3-Coder-Next-FP8` →
+  `Qwen/Qwen3-Coder-Next`, `Qdrant/all-MiniLM-L6-v2-onnx` → `sentence-transformers/all-MiniLM-L6-v2`).
+- Above the threshold (0.69) the top-1 guess is right **78.7 %** of the time on the test set, for 16 % of
+  the children. Written: 1,452 `PREDICTED_PARENT` edges for 1,327 of the 22,514 orphan models.
+- Known mistake type: siblings with very similar names (`bert-base-multilingual-uncased` →
+  `bert-base-uncased`). That is why it stays a hypothesis with a score.
+
 ---
 
 ## Architecture
