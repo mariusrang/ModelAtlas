@@ -53,6 +53,18 @@ make docker-run    # builds and starts Neo4j, Ollama, API, UI and Nginx
 make ollama-pull   # first time only: downloads the local LLM (~4.7 GB)
 ```
 
+Demo notebook: [demo.ipynb](demo.ipynb) (exploration + charts, needs the stack running).
+
+Use a Python 3.12+ environment for the notebook (NetworkX 3.7 requires it), and
+load the full graph with both model cards and dataset cards first. The dataset
+analysis requires the dataset-card ETL from PR #5. Saved outputs record the data
+revisions used for that execution.
+
+```bash
+python -m pip install -r requirements-notebook.txt
+python -m jupyter lab demo.ipynb
+```
+
 Then open:
 
 | What | URL |
