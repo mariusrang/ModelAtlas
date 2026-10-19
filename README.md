@@ -36,7 +36,8 @@ our rules applied to verified facts) or, for the ML and agent steps, `HYPOTHESIS
 | ETL (transform + load into Neo4j) | done |
 | Graph queries + API endpoints | done |
 | Second source: dataset cards (training-data licenses) | done |
-| GDS + parent-model prediction | next |
+| GDS: PageRank, WCC, Louvain, Node Similarity, FastRP | done |
+| Parent-model prediction (link prediction) | next |
 | LangGraph agent with NL-to-Cypher + guardrails | planned |
 | Streamlit UI, demo notebook | skeleton / planned |
 
@@ -99,7 +100,7 @@ The transform applies rules from [`config/scope.toml`](config/scope.toml), each 
 | parents missing from the dump become `:Unlisted` nodes | 22% of lineage edges point to a model that is not public anymore |
 | ignore arXiv `1910.09700` | cited by 126k models only because it is in the default card template |
 | precompute depth, descendants, roots | shown on every model page; 99.6% of chains are <= 5 levels deep |
-| read dataset cards only for cited datasets | 15.5k datasets are cited out of ~631k cards |
+| read dataset cards only for cited datasets | 15.5k datasets are cited out of ~631k cards; 9,400 of them (60.7%) have a card |
 
 Result (full graph, [`reports/load_report.md`](reports/load_report.md)): 156,071 models (6,138 of them
 `Unlisted`), 101,781 lineage edges, 43.5k organizations, 15.5k datasets, 9.4k papers, all validation checks
@@ -151,6 +152,9 @@ applied to verified facts) or `HYPOTHESIS` (ML/LLM guess, later steps).
 | `POST /recommend` | Shortlist for a client brief (task, size, language, commercial use) | DERIVED |
 | `GET /organizations/{id}/footprint` | Who builds on an organization's models? | DERIVED |
 | `GET /datasets/{id}` | Dataset card facts and the most downloaded models trained on it | VERIFIED |
+| `GET /graph/influential?task=text-generation` | Base models the ecosystem builds on the most (PageRank) | DERIVED |
+| `GET /models/{id}/similar` | Models trained on the same data / citing the same papers (Node Similarity) | DERIVED |
+| `GET /models/{id}/family` | Family (WCC), sub-family (Louvain) and rank in the family (PageRank) | DERIVED |
 | `POST /admin/license-rules/reload` | Re-apply `config/licenses.toml` without reloading the graph (needs `X-API-Key`) | - |
 
 Model ids keep their slash (`/models/mistralai/Mistral-7B-v0.1/lineage`). Some examples (from cmd):
@@ -177,6 +181,25 @@ Design choices, briefly:
   [`config/licenses.toml`](config/licenses.toml). Informational only, not legal advice.
 - **No N+1**: the recommendation checks the licenses of its whole shortlist in one query (`UNWIND $ids`).
 - **Pagination**: keyset on `(downloads, id)` instead of `SKIP`, so page 50 costs the same as page 1.
+
+---
+
+## Graph algorithms (GDS)
+
+`make gds` runs five Neo4j Graph Data Science algorithms on the loaded graph and writes their results
+back on the nodes, so the API reads them with indexed Cypher instead of recomputing them per request.
+Numbers, run times and top-10 tables: [`reports/gds_report.md`](reports/gds_report.md).
+
+| Algorithm | Runs on | Question it answers | Written as |
+| --- | --- | --- | --- |
+| PageRank | lineage edges, child → parent | Which base models does the ecosystem rely on? | `Model.pagerank` |
+| WCC | lineage edges | Which models belong to the same family? | `Model.family_id` |
+| Louvain | lineage edges, undirected | Which sub-families exist inside a big family? | `Model.community` |
+| Node Similarity (Jaccard) | Model → Dataset / Paper | Which models were trained on the same data? | `(:Model)-[:SIMILAR_TO {score}]-(:Model)` |
+| FastRP (64-d) | lineage + datasets + papers + publishers + architectures | A vector per model, used by the link-prediction step | `Model.embedding` |
+
+PageRank on lineage edges differs from `descendant_count`: a model whose descendants are themselves
+heavily reused ranks higher than one with many dead-end quantized copies.
 
 ---
 
@@ -216,6 +239,7 @@ guardrails and evidence labels live. Diagrams of the services, the API layers an
 | `make fixture` | Rebuild the small test fixtures from the full dumps |
 | `make seed` | Build the full graph in Neo4j (transform + load + validate) |
 | `make seed-sample` | Load the small fixture into Neo4j (used by CI) |
+| `make gds` | Run the graph algorithms on the loaded graph -> `reports/gds_report.md` |
 | `make test` | All tests + coverage (integration tests skip if the stack is down) |
 | `make test-unit` | Fast tests only, no Docker needed |
 | `make test-integration` | Tests against the running stack |
