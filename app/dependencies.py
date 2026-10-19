@@ -35,5 +35,8 @@ def require_admin_key(
     does not leak how many characters of the key were right.
     """
     expected = settings.admin_api_key.get_secret_value()
+    if expected.startswith("change-me"):
+        # the placeholder from .env.example is public, so it must never open anything
+        raise UnauthorizedError("Admin endpoints are disabled until ADMIN_API_KEY is set in .env")
     if not x_api_key or not secrets.compare_digest(x_api_key, expected):
         raise UnauthorizedError("Missing or invalid X-API-Key header")
