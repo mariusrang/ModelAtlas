@@ -21,6 +21,8 @@ OTHER_REL_TYPES = (
     "SUPPORTS",
     "HAS_ARCHITECTURE",
 )
+# Written by the GDS step, never declared in a card: always DERIVED.
+DERIVED_REL_TYPES = ("SIMILAR_TO",)
 
 
 class Evidence(str, Enum):
