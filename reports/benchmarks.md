@@ -1,6 +1,8 @@
 # Query benchmarks
 
-Measured at 2026-10-16T12:39:36+00:00 on Neo4j 5.26.32, with 156,611 Model nodes.
+Reproduce: `python -m scripts.benchmark --runs 30 --deep-root Fizzarolli/MN-12b-Rosier-v1`.
+
+Measured at 2026-10-19T11:18:18+00:00 on Neo4j 5.26.32, with 156,611 Model nodes.
 Data: model_cards dump at commit `ce0b4cd50b6253d526765077de9e8d95e743f086` (local download manifest).
 Node counts depend on this snapshot and can differ from the repository's reference load report.
 Each variant has 3 warm-up runs and 30 timed runs. p50 and p95 use linear interpolation. Latency is client wall time including all returned records. Execution order alternates each pair. PROFILE runs separately; db hits are summed over its whole tree.
@@ -30,38 +32,41 @@ These inputs apply to every pair unless an experiment lists an override.
 
 | Experiment | Naive p50 ms | Optimized p50 ms | Speed-up | Naive db hits | Optimized db hits |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Author lookup | 95.878 | 18.688 | 5.13x | 313696 | 1423 |
-| LIMIT early | 131.758 | 69.857 | 1.89x | 157042 | 157042 |
-| Literal vs parameter | 2.944 | 2.242 | 1.31x | 2 | 2 |
-| Cartesian product | 309.960 | 14.883 | 20.83x | 1977633 | 7316 |
-| Deep pagination | 9.785 | 4.424 | 2.21x | 10043 | 45 |
-| Bounded traversal | 64.698 | 64.711 | 1.00x | 7677 | 18441 |
-| Precomputed descendants | 6.832 | 3.290 | 2.08x | 16610 | 3 |
+| Author lookup | 95.716 | 33.223 | 2.88x | 313696 | 1423 |
+| LIMIT early | 120.481 | 62.187 | 1.94x | 157042 | 157042 |
+| Literal vs parameter | 10.619 | 4.373 | 2.43x | 2 | 2 |
+| Cartesian product | 286.913 | 24.829 | 11.56x | 1977633 | 7316 |
+| Deep pagination | 10.990 | 5.761 | 1.91x | 10043 | 45 |
+| Bounded traversal | 102.077 | 108.711 | 0.94x | 7677 | 18441 |
+| Precomputed descendants | 5.410 | 3.166 | 1.71x | 16610 | 3 |
+| Bounded traversal (deep family) | 7345.976 | 28.040 | 261.99x | 11094795 | 3723 |
 
 ## Complete measurements
 
 | Experiment | Variant | p50 ms | p95 ms | Rows | Db hits | Status |
 | --- | --- | ---: | ---: | ---: | ---: | --- |
-| Author lookup | naive | 95.878 | 153.137 | 473 | 313696 | ok |
-| Author lookup | optimized | 18.688 | 25.133 | 473 | 1423 | ok |
-| LIMIT early | naive | 131.758 | 176.896 | 10 | 157042 | ok |
-| LIMIT early | optimized | 69.857 | 104.592 | 10 | 157042 | ok |
-| Literal vs parameter | naive | 2.944 | 4.394 | 1 | 2 | ok |
-| Literal vs parameter | optimized | 2.242 | 4.648 | 1 | 2 | ok |
-| Cartesian product | naive | 309.960 | 343.025 | 322 | 1977633 | ok |
-| Cartesian product | optimized | 14.883 | 18.299 | 322 | 7316 | ok |
-| Deep pagination | naive | 9.785 | 13.566 | 20 | 10043 | ok |
-| Deep pagination | optimized | 4.424 | 9.795 | 20 | 45 | ok |
-| Bounded traversal | naive | 64.698 | 81.964 | 1891 | 7677 | ok |
-| Bounded traversal | optimized | 64.711 | 97.747 | 1891 | 18441 | ok |
-| Precomputed descendants | naive | 6.832 | 9.453 | 1 | 16610 | ok |
-| Precomputed descendants | optimized | 3.290 | 6.188 | 1 | 3 | ok |
+| Author lookup | naive | 95.716 | 135.337 | 473 | 313696 | ok |
+| Author lookup | optimized | 33.223 | 43.064 | 473 | 1423 | ok |
+| LIMIT early | naive | 120.481 | 136.377 | 10 | 157042 | ok |
+| LIMIT early | optimized | 62.187 | 81.292 | 10 | 157042 | ok |
+| Literal vs parameter | naive | 10.619 | 32.699 | 1 | 2 | ok |
+| Literal vs parameter | optimized | 4.373 | 22.383 | 1 | 2 | ok |
+| Cartesian product | naive | 286.913 | 336.265 | 322 | 1977633 | ok |
+| Cartesian product | optimized | 24.829 | 31.896 | 322 | 7316 | ok |
+| Deep pagination | naive | 10.990 | 14.894 | 20 | 10043 | ok |
+| Deep pagination | optimized | 5.761 | 7.748 | 20 | 45 | ok |
+| Bounded traversal | naive | 102.077 | 146.695 | 1891 | 7677 | ok |
+| Bounded traversal | optimized | 108.711 | 134.076 | 1891 | 18441 | ok |
+| Precomputed descendants | naive | 5.410 | 8.023 | 1 | 16610 | ok |
+| Precomputed descendants | optimized | 3.166 | 4.332 | 1 | 3 | ok |
+| Bounded traversal (deep family) | naive | 7345.976 | 7559.651 | 427 | 11094795 | ok |
+| Bounded traversal (deep family) | optimized | 28.040 | 36.376 | 427 | 3723 | ok |
 
 ## Author lookup
 
 The property filter scans Model nodes. The connected pattern starts from the unique Organization id.
 
-Measured median speed-up: 5.13x. The optimized median latency was lower, and its db-hit count was lower. Small latency differences alone should not be treated as a reliable improvement.
+Measured median speed-up: 2.88x. The optimized median latency was lower, and its db-hit count was lower. Small latency differences alone should not be treated as a reliable improvement.
 
 Naive:
 
@@ -84,7 +89,7 @@ MATCH (:Organization {id:$author})<-[:PUBLISHED_BY]-(m:Model) RETURN m.id AS id 
 
 Collecting the full ordered result keeps all matching models in memory. LIMIT allows a Top operator or an ordered index scan to keep only the requested rows. Both variants still read the same candidates and properties, so db hits can match. Db hits do not count sorting, allocating the collection or copying maps; Top keeps a small candidate set instead.
 
-Measured median speed-up: 1.89x. The optimized median latency was lower, and its db-hit count was unchanged. Small latency differences alone should not be treated as a reliable improvement.
+Measured median speed-up: 1.94x. The optimized median latency was lower, and its db-hit count was unchanged. Small latency differences alone should not be treated as a reliable improvement.
 
 Naive:
 
@@ -107,7 +112,7 @@ MATCH (m:Model {task:$task}) RETURN m.id AS id, m.downloads AS downloads ORDER B
 
 Each timed pair looks up the same real id. The literal changes between calls across 30 ids. Neo4j 5 auto-parameterizes literals, so this is not proof of a fresh plan compilation on every call. Explicit parameters keep the query text stable and avoid manual string escaping.
 
-Measured median speed-up: 1.31x. The optimized median latency was lower, and its db-hit count was unchanged. Small latency differences alone should not be treated as a reliable improvement.
+Measured median speed-up: 2.43x. The optimized median latency was lower, and its db-hit count was unchanged. Small latency differences alone should not be treated as a reliable improvement.
 
 Naive:
 
@@ -130,7 +135,7 @@ MATCH (m:Model {id:$id}) RETURN m.id AS id
 
 The disconnected form can combine candidates before checking relationships. The connected pattern starts from one publisher and checks its models' licenses. The actual planner may also rewrite the naive form, so syntax alone does not prove that a CartesianProduct operator was used.
 
-Measured median speed-up: 20.83x. The optimized median latency was lower, and its db-hit count was lower. Small latency differences alone should not be treated as a reliable improvement.
+Measured median speed-up: 11.56x. The optimized median latency was lower, and its db-hit count was lower. Small latency differences alone should not be treated as a reliable improvement.
 
 Naive:
 
@@ -153,7 +158,7 @@ MATCH (:Organization {id:$org})<-[:PUBLISHED_BY]-(m:Model)-[:HAS_LICENSE]->(:Lic
 
 SKIP discards 5,000 sorted rows. Keyset pagination filters by the previous page's final (downloads, id) pair, including ties. Cursor discovery is outside the timed section because a normal client already has that cursor. An explicit downloads upper bound enables a range seek; PartialTop can order only the equal-download groups by id.
 
-Measured median speed-up: 2.21x. The optimized median latency was lower, and its db-hit count was lower. Small latency differences alone should not be treated as a reliable improvement.
+Measured median speed-up: 1.91x. The optimized median latency was lower, and its db-hit count was lower. Small latency differences alone should not be treated as a reliable improvement.
 
 Naive:
 
@@ -176,7 +181,7 @@ MATCH (m:Model) WHERE m.downloads <= $last_downloads AND (m.downloads < $last_do
 
 Both variants return distinct descendants within 6 hops. The naive pattern expands without a bound and filters path length afterwards; the optimized pattern puts the bound in the expansion. An unrestricted result would include deeper descendants and would be a different answer. The naive variant has a 20 s server transaction timeout. Breadth-first pruning checks and deduplicates nodes; on a small family, this can increase db hits despite the depth cap.
 
-Measured median speed-up: 1.00x. The optimized median latency was not lower, and its db-hit count was higher. Small latency differences alone should not be treated as a reliable improvement.
+Measured median speed-up: 0.94x. The optimized median latency was not lower, and its db-hit count was higher. Small latency differences alone should not be treated as a reliable improvement.
 
 Naive:
 
@@ -199,7 +204,7 @@ MATCH (c:Model)-[:FINETUNED_FROM|ADAPTER_OF|QUANTIZED_FROM|MERGED_FROM*1..6]->(m
 
 The live count visits the descendant graph and removes duplicates. The stored count needs one id lookup and a property read. This shifts work to ETL; the property must be refreshed after graph changes.
 
-Measured median speed-up: 2.08x. The optimized median latency was lower, and its db-hit count was lower. Small latency differences alone should not be treated as a reliable improvement.
+Measured median speed-up: 1.71x. The optimized median latency was lower, and its db-hit count was lower. Small latency differences alone should not be treated as a reliable improvement.
 
 Naive:
 
@@ -217,6 +222,36 @@ Observed operators (leaves first): NodeUniqueIndexSeek, Projection, ProduceResul
 MATCH (m:Model {id:$root}) RETURN m.descendant_count AS descendants
 ```
 
+
+## Bounded traversal (deep family)
+
+Both variants return distinct descendants within 6 hops. The naive pattern expands without a bound and filters path length afterwards; the optimized pattern puts the bound in the expansion. An unrestricted result would include deeper descendants and would be a different answer. The naive variant has a 20 s server transaction timeout. Breadth-first pruning checks and deduplicates nodes; on a small family, this can increase db hits despite the depth cap.
+
+Measured median speed-up: 261.99x. The optimized median latency was lower, and its db-hit count was lower. Small latency differences alone should not be treated as a reliable improvement.
+
+Naive:
+
+Observed operators (leaves first): NodeUniqueIndexSeek, VarLengthExpand(All), Filter, Distinct, Sort, ProduceResults.
+
+```cypher
+MATCH path = (c:Model)-[:FINETUNED_FROM|ADAPTER_OF|QUANTIZED_FROM|MERGED_FROM*]->(m:Model {id:$root}) WHERE length(path) <= $depth RETURN DISTINCT c.id AS id ORDER BY id
+```
+
+Optimized:
+
+Observed operators (leaves first): NodeUniqueIndexSeek, VarLengthExpand(Pruning,BFS,All), Filter, Projection, Sort, ProduceResults.
+
+```cypher
+MATCH (c:Model)-[:FINETUNED_FROM|ADAPTER_OF|QUANTIZED_FROM|MERGED_FROM*1..6]->(m:Model {id:$root}) RETURN DISTINCT c.id AS id ORDER BY id
+```
+
+Parameter overrides:
+
+```json
+{
+  "root": "Fizzarolli/MN-12b-Rosier-v1"
+}
+```
 
 For the literal pair, replace `__LITERAL__` with a JSON-quoted id from the first 30 Model ids in ascending order; supply the same id as `$id` to the parameterized query. The list cycles if more than 30 calls are requested.
 

@@ -217,7 +217,8 @@ def test_prepare_requires_the_full_graph(runner: BenchmarkRunner) -> None:
         runner.prepare()
 
 
-def test_prepare_reads_cursor_and_metadata(runner: BenchmarkRunner) -> None:
+@pytest.mark.parametrize("deep_root", [None, "deep/root"])
+def test_prepare_reads_cursor_and_metadata(runner: BenchmarkRunner, deep_root: str | None) -> None:
     """Resolve the last row before the offset page outside the measured queries."""
     runner.client.read.side_effect = [
         [],
@@ -226,9 +227,13 @@ def test_prepare_reads_cursor_and_metadata(runner: BenchmarkRunner) -> None:
         [{"id": "Qwen/Qwen2.5-7B"}],
         [{"version": "5.26"}],
         [{"count": 156611}],
+        [{"id": "deep/root"}],
     ]
-    experiments, metadata = runner.prepare()
-    assert len(experiments) == 7
+    experiments, metadata = runner.prepare(deep_root)
+    assert len(experiments) == (8 if deep_root else 7)
+    if deep_root:
+        assert experiments[-1].params["root"] == deep_root
+        assert metadata["deep_root"] == deep_root
     assert experiments[4].params["last_id"] == "org/cursor"
     assert experiments[4].params["last_downloads"] == 12
     assert metadata["models"] == 156611

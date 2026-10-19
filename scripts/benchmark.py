@@ -10,7 +10,7 @@ import json
 import logging
 import math
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
 from time import perf_counter
@@ -232,7 +232,7 @@ class BenchmarkRunner:
         self.runs = runs
         self.model_ids: list[str] = []
 
-    def prepare(self) -> tuple[list[Experiment], dict[str, Any]]:
+    def prepare(self, deep_root: str | None = None) -> tuple[list[Experiment], dict[str, Any]]:
         """Read metadata, model ids and the cursor before any measurements.
 
         Raises:
@@ -280,7 +280,15 @@ class BenchmarkRunner:
             "runs": self.runs,
             "data_commit": data_commit(),
         }
-        return build_experiments(params), metadata
+        experiments = build_experiments(params)
+        if deep_root:
+            if not self.client.read("MATCH (m:Model {id:$id}) RETURN m.id AS id", {"id": deep_root}):
+                raise ValueError(f"Deep-family root is not in the graph: {deep_root}")
+            experiments.append(
+                replace(experiments[5], name="Bounded traversal (deep family)", params={**params, "root": deep_root})
+            )
+            metadata["deep_root"] = deep_root
+        return experiments, metadata
 
     def execute(self, cypher: str, params: dict[str, Any], profile: bool = False) -> tuple[list[dict], float, dict]:
         """Fetch all rows in a READ session; return rows, elapsed ms and profile.
@@ -312,7 +320,11 @@ class BenchmarkRunner:
         try:
             return self.execute(cypher, params, profile=iteration == -1)
         except Neo4jError as exc:
-            if experiment.name == "Bounded traversal" and variant == "naive" and "TimedOut" in (exc.code or ""):
+            if (
+                experiment.name.startswith("Bounded traversal")
+                and variant == "naive"
+                and "TimedOut" in (exc.code or "")
+            ):
                 LOGGER.warning("Unbounded traversal exceeded the 20 s server timeout")
                 return None
             raise
@@ -430,6 +442,12 @@ def render_markdown(results: list[BenchmarkResult], metadata: dict[str, Any]) ->
         "| Experiment | Naive p50 ms | Optimized p50 ms | Speed-up | Naive db hits | Optimized db hits |",
         "| --- | ---: | ---: | ---: | ---: | ---: |",
     ]
+    if metadata.get("deep_root"):
+        lines[2:2] = [
+            f"Reproduce: `python -m scripts.benchmark --runs {metadata['runs']} "
+            f"--deep-root {metadata['deep_root']}`.",
+            "",
+        ]
     for result in results:
         lines.append(
             (
@@ -561,6 +579,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--uri", default="bolt://localhost:7687")
     parser.add_argument("--runs", type=int, default=30)
+    parser.add_argument("--deep-root", help="add a second traversal case for a model with a deep descendant family")
     args = parser.parse_args(argv)
     if args.runs < 1:
         parser.error("--runs must be positive")
@@ -569,7 +588,7 @@ def main(argv: list[str] | None = None) -> int:
     client = Neo4jClient(settings)
     try:
         runner = BenchmarkRunner(client, settings, args.runs)
-        experiments, metadata = runner.prepare()
+        experiments, metadata = runner.prepare(args.deep_root)
         results = []
         for experiment in experiments:
             LOGGER.info(f"Benchmarking {experiment.name}")
