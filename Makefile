@@ -2,7 +2,7 @@
 # Works on Linux/macOS and on Windows (Git Bash or any shell with GNU make).
 
 .DEFAULT_GOAL := help
-.PHONY: help venv install run ui env docker-build docker-run docker-down docker-logs ollama-pull data profile fixture seed seed-sample \
+.PHONY: help venv install run ui env docker-build docker-run docker-down docker-logs ollama-pull data data-pin profile fixture seed seed-sample \
         test test-unit test-integration coverage lint format clean tree
 
 # --- Python paths (the venv layout differs on Windows) ---
@@ -57,13 +57,16 @@ docker-logs: ## Follow the logs of every service
 ollama-pull: ## Download the local LLM into the Ollama container (once, ~4.7 GB)
 	docker compose exec ollama ollama pull $(OLLAMA_MODEL)
 
-data: ## Download the raw Hugging Face model-card dump (~1.5 GB, only once)
-	$(VENV_PY) -m scripts.etl.extract model_cards
+data: ## Download both raw dumps: model cards + dataset cards (~2.5 GB, only once)
+	$(VENV_PY) -m scripts.etl.extract
+
+data-pin: ## Pin config/sources.toml to the exact commits downloaded by `make data`
+	$(VENV_PY) -m scripts.etl.extract --pin
 
 profile: ## Profile the raw dump -> reports/data_profile.md
 	$(VENV_PY) -m scripts.etl.profile
 
-fixture: ## Rebuild the small test fixture (tests/fixtures/sample_models) from the full dump
+fixture: ## Rebuild the small test fixtures (tests/fixtures/sample_*) from the full dumps
 	$(VENV_PY) -m scripts.etl.make_fixture
 
 seed: ## Build the FULL graph in Neo4j: transform + load + validate (~10 min, stack must be up)
