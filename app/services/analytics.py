@@ -5,6 +5,8 @@ from app.models.analytics import (
     FamilyMember,
     FamilyResponse,
     InfluentialResponse,
+    PredictedParent,
+    PredictedParentsResponse,
     RankedModel,
     SimilarModel,
     SimilarResponse,
@@ -13,6 +15,7 @@ from app.repositories.graph_repository import GraphRepository
 from app.services.common import to_summary
 
 NOT_COMPUTED = "graph algorithms have not been run on this graph yet: run `make gds`"
+NOT_PREDICTED = "parent predictions have not been computed on this graph yet: run `make predict`"
 
 
 class AnalyticsService:
@@ -76,4 +79,38 @@ class AnalyticsService:
             community=row["community"],
             community_size=row["community_size"],
             top_members=[FamilyMember(**m) for m in row["top_members"]],
+        )
+
+    def predicted_parents(self, model_id: str, limit: int) -> PredictedParentsResponse:
+        """Parents guessed by `make predict` (HYPOTHESIS)."""
+        row = self.repo.predicted_parents(model_id, limit)
+        if row is None:
+            raise NotFoundError(f"model '{model_id}' is not in the graph")
+        if not row["predictions_ready"]:
+            raise ServiceUnavailableError(NOT_PREDICTED)
+        results = [
+            PredictedParent(
+                model=to_summary(p["model"]),
+                score=p["score"],
+                rank=p["rank"],
+                name_score=p["name_score"],
+                content_cosine=p["content_cosine"],
+            )
+            for p in row["predictions"]
+        ]
+        note = None
+        if row["declared_parents"]:
+            note = "This model declares its parent in its card: see /lineage, predictions are only made for orphans."
+        elif not results:
+            note = (
+                "No prediction: the model has under 100 downloads, or no candidate scored above the threshold "
+                "chosen for 80% precision."
+            )
+        version = row["predictions"][0]["model_version"] if row["predictions"] else None
+        return PredictedParentsResponse(
+            model_id=model_id,
+            model_version=version,
+            declared_parents=row["declared_parents"],
+            results=results,
+            note=note,
         )
