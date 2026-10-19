@@ -120,11 +120,11 @@ def synthetic_graph(n_bases: int = 60):
     rng = random.Random(0)
     rows, edges = [], []
 
-    def add(model_id, day, downloads, author=None, child_count=0, params=7.0):
+    def add(model_id, day, downloads, child_count=0, params=7.0):
         rows.append(
             {
                 "id": model_id,
-                "author": author or model_id.split("/")[0],
+                "author": model_id.split("/")[0],
                 "created": float(day),
                 "params": params,
                 "task": "text-generation",
