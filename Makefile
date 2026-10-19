@@ -3,7 +3,7 @@
 
 .DEFAULT_GOAL := help
 .PHONY: help venv install run ui env docker-build docker-run docker-down docker-logs ollama-pull data profile fixture seed seed-sample \
-        test test-unit test-integration coverage lint format clean tree bench
+        test test-unit test-integration coverage lint format clean tree
 
 # --- Python paths (the venv layout differs on Windows) ---
 ifeq ($(OS),Windows_NT)
@@ -72,6 +72,7 @@ seed: ## Build the FULL graph in Neo4j: transform + load + validate (~10 min, st
 seed-sample: ## Load the small fixture into Neo4j (~1 min, used by CI and the Cypher tests)
 	$(VENV_PY) -m scripts.seed_data --sample
 
+.PHONY: bench
 bench: ## Benchmark naive vs optimized Cypher queries -> reports/benchmarks.md
 	$(VENV_PY) -m scripts.benchmark
 
