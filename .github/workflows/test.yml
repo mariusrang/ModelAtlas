@@ -58,6 +58,8 @@ jobs:
           .venv/bin/pip install -r requirements-dev.txt
       - name: Load the sample graph (make seed-sample)
         run: make seed-sample
+      - name: Run the graph algorithms (make gds-sample)
+        run: make gds-sample
       - name: Container health + graph integration tests
         env:
           NEO4J_PASSWORD: ci-password-123

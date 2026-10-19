@@ -2,7 +2,7 @@
 # Works on Linux/macOS and on Windows (Git Bash or any shell with GNU make).
 
 .DEFAULT_GOAL := help
-.PHONY: help venv install run ui env docker-build docker-run docker-down docker-logs ollama-pull data data-pin profile fixture seed seed-sample \
+.PHONY: help venv install run ui env docker-build docker-run docker-down docker-logs ollama-pull data data-pin profile fixture seed seed-sample gds gds-sample \
         test test-unit test-integration coverage lint format clean tree
 
 # --- Python paths (the venv layout differs on Windows) ---
@@ -74,6 +74,12 @@ seed: ## Build the FULL graph in Neo4j: transform + load + validate (~10 min, st
 
 seed-sample: ## Load the small fixture into Neo4j (~1 min, used by CI and the Cypher tests)
 	$(VENV_PY) -m scripts.seed_data --sample
+
+gds: ## Run the graph algorithms (PageRank, WCC, Louvain, Node Similarity, FastRP) -> reports/gds_report.md
+	$(VENV_PY) -m scripts.graph_algorithms
+
+gds-sample: ## Same on the sample graph (used by CI) -> reports/gds_report_sample.md
+	$(VENV_PY) -m scripts.graph_algorithms --sample
 
 test: ## Run the whole test suite with coverage (integration tests skip if the stack is down)
 	$(VENV_PY) -m pytest --cov=app --cov=ui --cov=scripts --cov-report=term-missing --cov-report=xml $(PYTEST_ARGS)
