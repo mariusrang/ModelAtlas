@@ -125,3 +125,12 @@ def test_ancestors_are_sorted_closest_first():
     sorted_facts = facts(APACHE, rows)
     assert [a.id for a in sorted_facts.ancestors] == ["mid", "far"]
     assert [r.value for r in sorted_facts.ancestors[1].relations] == ["finetune", "merge"]
+
+
+def test_a_dataset_with_two_restricted_licenses_is_counted_once():
+    other_nc = {**NON_COMMERCIAL, "id": "cc-by-nc-sa-4.0"}
+    data = [dataset_row("ds/nc", "me/x", 0, NON_COMMERCIAL), dataset_row("ds/nc", "me/x", 0, other_nc)]
+    result = evaluate("me/x", facts(own=APACHE, datasets=data), depth_limit=6)
+    assert result.verdict == Verdict.NEEDS_REVIEW
+    assert "1 training dataset(s)" in result.explanation
+    assert len(result.training_data) == 2  # both licenses stay visible, each with its own row
