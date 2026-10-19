@@ -146,8 +146,9 @@ def explain(facts: LineageFacts, inherited, verdict: Verdict, conflicts: int, de
         parts.append(f"{missing} ancestor(s) declare no license, which needs a human check.")
     restricted = restricted_datasets(facts.datasets)
     if restricted:
-        names = ", ".join(sorted({d.id for d in restricted})[:3])
-        parts.append(f"{len(restricted)} training dataset(s) have a non-commercial or conditional license ({names}).")
+        ids = sorted({d.id for d in restricted})  # one row per (dataset, license): count datasets once
+        names = ", ".join(ids[:3])
+        parts.append(f"{len(ids)} training dataset(s) have a non-commercial or conditional license ({names}).")
     if any(a.unlisted for a in ancestors):
         parts.append("Part of the lineage is not in the public dump, so it can't be fully checked.")
     if (facts.lineage_depth or 0) > depth_limit:
