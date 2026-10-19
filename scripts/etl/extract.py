@@ -100,6 +100,9 @@ def pin_revisions(sources: dict[str, Source], path: Path = SOURCES_FILE) -> dict
         text, count = section.subn(rf'\g<1>"{manifest["commit"]}"', text)
         if count:
             pinned[name] = manifest["commit"]
+        else:
+            # e.g. `revision` written after `allow_patterns`: say it instead of doing nothing
+            logger.warning(f"{name}: downloaded but not pinned, put `revision = ...` right after `repo_type`")
     path.write_text(text, encoding="utf-8")
     return pinned
 

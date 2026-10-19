@@ -64,3 +64,18 @@ def test_pin_revisions_rewrites_only_downloaded_sources(tmp_path, monkeypatch):
     reloaded = load_sources(toml)
     assert reloaded["model_cards"].revision == "abc123"
     assert reloaded["dataset_cards"].revision == "main"  # not downloaded yet -> untouched
+
+
+def test_pin_warns_when_the_revision_line_is_not_found(tmp_path, monkeypatch, caplog):
+    monkeypatch.setattr(extract.Source, "local_dir", property(lambda self: tmp_path / self.name))
+    toml = tmp_path / "sources.toml"
+    # revision written after a list: the pattern can't reach it
+    toml.write_text(
+        '[model_cards]\nrepo_id = "a/b"\nallow_patterns = ["*.parquet"]\nrevision = "main"\n', encoding="utf-8"
+    )
+    (tmp_path / "model_cards").mkdir()
+    (tmp_path / "model_cards" / "manifest.json").write_text(json.dumps({"commit": "abc123"}), encoding="utf-8")
+
+    with caplog.at_level("WARNING"):
+        assert not extract.pin_revisions(load_sources(toml), toml)
+    assert "not pinned" in caplog.text
