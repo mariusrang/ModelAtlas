@@ -2,7 +2,7 @@
 
 from pydantic import BaseModel, Field
 
-from app.domain import Evidence
+from app.domain import Evidence, Relation
 
 
 class ModelSummary(BaseModel):
@@ -49,7 +49,7 @@ class ParentRef(BaseModel):
     """A declared parent of a model."""
 
     id: str
-    relation: str = Field(examples=["finetune"])
+    relation: Relation
     declared: bool = Field(description="False when the card gave a parent but not the relation kind")
     unlisted: bool = False
 
