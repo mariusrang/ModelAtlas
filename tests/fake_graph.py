@@ -47,6 +47,7 @@ class FakeRepository:
 
     def __init__(self):
         self.calls = []
+        self.gds = True  # False = `make gds` not run yet
         self.licenses = {"acme/base": APACHE, "acme/chat": APACHE, "bob/chat-GGUF": None, "carl/lora": NON_COMMERCIAL}
 
     def stats(self):
@@ -198,6 +199,71 @@ class FakeRepository:
             "builders": [{"organization": "bob", "models": 1}, {"organization": "carl", "models": 1}][:limit],
             "direct_children_by_kind": [{"rel_type": "ADAPTER_OF", "count": 1}],
         }
+
+    def influential(self, task, limit):
+        self.calls.append(("influential", task, limit))
+        rows = [
+            {
+                "model": {**MODELS["acme/base"], "unlisted": False, "license": "apache-2.0"},
+                "pagerank": 2.51234,
+                "descendant_count": 3,
+                "family_id": 1,
+            },
+            {
+                "model": {**MODELS["acme/chat"], "unlisted": False, "license": "apache-2.0"},
+                "pagerank": 1.2,
+                "descendant_count": 1,
+                "family_id": 1,
+            },
+        ]
+        return [r for r in rows if task in (None, r["model"]["task"])][:limit] if self.gds else []
+
+    def similar_models(self, model_id, limit):
+        if model_id not in MODELS:
+            return None
+        similar = []
+        if model_id == "acme/chat":
+            similar = [
+                {
+                    "model": {**MODELS["bob/chat-GGUF"], "unlisted": False, "license": None},
+                    "score": 0.6667,
+                    "shared_datasets": 2,
+                    "shared_papers": 0,
+                }
+            ]
+        return {"id": model_id, "gds_ready": self.gds, "similar": similar[:limit]}
+
+    def model_family(self, model_id, limit):
+        if model_id not in MODELS:
+            return None
+        if not self.gds:
+            return {
+                "id": model_id,
+                "pagerank": None,
+                "family_id": None,
+                "community": None,
+                "family_size": 0,
+                "rank_in_family": None,
+                "community_size": 0,
+                "top_members": [],
+            }
+        members = [
+            {"id": "acme/base", "downloads": 1000, "pagerank": 2.5},
+            {"id": "acme/chat", "downloads": 500, "pagerank": 1.2},
+        ]
+        return {
+            "id": model_id,
+            "pagerank": 1.2,
+            "family_id": 1,
+            "community": 7,
+            "family_size": 4,
+            "rank_in_family": 2,
+            "community_size": 2,
+            "top_members": members[:limit],
+        }
+
+    def gds_ready(self):
+        return self.gds
 
     def model_exists(self, model_id):
         return model_id in MODELS
