@@ -37,7 +37,14 @@ class GdsFake:
 def test_every_algorithm_projects_runs_and_drops():
     fake = GdsFake()
     runs = gds.run_all(fake)
-    assert [r["algorithm"] for r in runs] == ["PageRank", "WCC", "Louvain", "Node Similarity", "FastRP"]
+    assert [r["algorithm"] for r in runs] == [
+        "PageRank",
+        "WCC",
+        "Louvain",
+        "Node Similarity",
+        "FastRP",
+        "FastRP (content)",
+    ]
     queries = [q for q, _ in fake.calls]
     assert "model_pagerank" in " ".join(queries[:SCHEMA_CALLS])  # indexes first
     queries = queries[SCHEMA_CALLS:]
@@ -56,7 +63,10 @@ def test_projections_use_only_known_labels_and_types():
     for nodes, relationships in gds.PROJECTIONS.values():
         assert set(nodes) <= {"Model", "Dataset", "Paper", "Organization", "Architecture"}
         assert all(spec["orientation"] in {"NATURAL", "UNDIRECTED"} for spec in relationships.values())
-    assert set(gds.PROJECTIONS["lineage"][1]) == {"FINETUNED_FROM", "ADAPTER_OF", "QUANTIZED_FROM", "MERGED_FROM"}
+    lineage = {"FINETUNED_FROM", "ADAPTER_OF", "QUANTIZED_FROM", "MERGED_FROM"}
+    assert set(gds.PROJECTIONS["lineage"][1]) == lineage
+    # the embedding used by link prediction must not see lineage edges (no leakage)
+    assert not set(gds.PROJECTIONS["content"][1]) & lineage
 
 
 def test_algorithms_are_parameterised_by_graph_name():

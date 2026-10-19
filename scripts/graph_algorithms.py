@@ -14,7 +14,11 @@ Each algorithm answers one question of the project:
 - Node Similarity on Model -> Dataset / Paper: which models were trained on the
   same data or cite the same papers? -> (:Model)-[:SIMILAR_TO {score}]->(:Model)
 - FastRP on lineage + data + papers + publishers + architectures: a 64-d vector
-  per model, used as a feature by the link-prediction step -> Model.embedding
+  per model that places a model close to its family -> Model.embedding
+- FastRP again WITHOUT lineage edges: what a model "looks like" from its data,
+  papers, publisher and architecture only. The link-prediction step uses this
+  one, because an embedding built from lineage edges would already contain the
+  parent we are trying to guess (data leakage) -> Model.content_embedding
 
 Results are written back (write mode) so the API reads them with plain, indexed
 Cypher instead of running an algorithm on every request. Everything here is
@@ -35,7 +39,8 @@ from scripts.seed_data import build_client
 
 logger = logging.getLogger("modelatlas.gds")
 
-ALL_TYPES = [*LINEAGE_TYPES, "TRAINED_ON", "CITES", "PUBLISHED_BY", "HAS_ARCHITECTURE"]
+CONTENT_TYPES = ["TRAINED_ON", "CITES", "PUBLISHED_BY", "HAS_ARCHITECTURE"]
+ALL_TYPES = [*LINEAGE_TYPES, *CONTENT_TYPES]
 
 # name -> (node labels, relationship projection)
 PROJECTIONS = {
@@ -48,6 +53,10 @@ PROJECTIONS = {
     "embedding": (
         ["Model", "Dataset", "Paper", "Organization", "Architecture"],
         {t: {"orientation": "UNDIRECTED"} for t in ALL_TYPES},
+    ),
+    "content": (
+        ["Model", "Dataset", "Paper", "Organization", "Architecture"],
+        {t: {"orientation": "UNDIRECTED"} for t in CONTENT_TYPES},
     ),
 }
 
@@ -114,6 +123,15 @@ ALGORITHMS = [
         YIELD nodePropertiesWritten, computeMillis
         RETURN nodePropertiesWritten, computeMillis""",
     ),
+    Algorithm(
+        "FastRP (content)",
+        "content",
+        """CALL gds.fastRP.write($graph, {
+            embeddingDimension: 64, iterationWeights: [0.0, 1.0, 1.0], randomSeed: 42,
+            writeProperty: 'content_embedding'})
+        YIELD nodePropertiesWritten, computeMillis
+        RETURN nodePropertiesWritten, computeMillis""",
+    ),
 ]
 
 # Read-only queries for the report.
@@ -166,7 +184,9 @@ WITH m, gds.similarity.cosine(anchor.embedding, m.embedding) AS cosine
 RETURN m.id AS model, round(cosine, 3) AS cosine ORDER BY cosine DESC LIMIT 10
 """
 MISSING_RESULTS = """
-MATCH (m:Model) WHERE m.pagerank IS NULL OR m.family_id IS NULL OR m.community IS NULL OR m.embedding IS NULL
+MATCH (m:Model)
+WHERE m.pagerank IS NULL OR m.family_id IS NULL OR m.community IS NULL
+   OR m.embedding IS NULL OR m.content_embedding IS NULL
 RETURN count(m) AS n
 """
 EMBEDDING_ANCHOR = "mistralai/Mistral-7B-v0.1"
