@@ -39,7 +39,6 @@ url = "https://opensource.org/license/mit"
 [other]
 id = "other"
 family = "other"
-commercial_use = "conditional"
 requires_attribution = false
 share_alike = false
 notes = "custom license, read the model card"
