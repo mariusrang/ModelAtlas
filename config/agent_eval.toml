@@ -71,3 +71,37 @@ question = "Est-ce que je peux utiliser mistralai/Mistral-7B-v0.1 dans un produi
 expect = "answer"
 tools = ["license_check"]
 mentions = ["apache"]
+
+# lineage and license questions to the agent evaluation
+
+[[case]]
+id = "lineage-llama-quantized"
+kind = "normal"
+question = "Which parent model is TheBloke/Llama-2-7B-Chat-GGUF derived from?"
+expect = "answer"
+tools = ["lineage", "model_details"]
+mentions = ["llama"]
+
+[[case]]
+id = "lineage-openhermes-quantized"
+kind = "normal"
+question = "Trace the declared lineage of TheBloke/OpenHermes-2.5-Mistral-7B-GGUF back to its base model."
+expect = "answer"
+tools = ["lineage"]
+mentions = ["openhermes", "mistral"]
+
+[[case]]
+id = "license-minilm-commercial"
+kind = "normal"
+question = "Can sentence-transformers/all-MiniLM-L6-v2 be used in a commercial product according to the graph?"
+expect = "answer"
+tools = ["license_check"]
+mentions = ["apache"]
+
+[[case]]
+id = "license-nllb-noncommercial"
+kind = "normal"
+question = "Can I use facebook/nllb-200-distilled-600M in a commercial translation product? Explain the license restriction."
+expect = "answer"
+tools = ["license_check"]
+mentions = ["cc-by-nc-4.0", "not_allowed"]
