@@ -45,7 +45,7 @@ counts are smaller because of our scope rules; to get them, run
 | --- | --- | --- | --- |
 | apache-2.0 | permissive | yes | 264,028 |
 | mit | permissive | yes | 79,444 |
-| other | other | conditional | 43,616 |
+| other | other | needs review | 43,616 |
 | openrail++ | open-rail | conditional | 10,782 |
 | cc-by-4.0 | permissive | yes | 9,926 |
 | cc-by-nc-4.0 | non-commercial | no | 8,147 |

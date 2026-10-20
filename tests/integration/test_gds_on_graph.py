@@ -82,3 +82,12 @@ def test_family_endpoint_matches_the_graph(graph):
     assert body["rank_in_family"] == 1  # the most influential model leads its family
     expected = _scalar(db, "MATCH (m:Model {family_id: $f}) RETURN count(m) AS n", {"f": top["family"]})
     assert body["family_size"] == expected
+
+
+def test_embeddings_are_only_on_models(graph):
+    _, db = graph
+    query = (
+        "MATCH (n) WHERE NOT n:Model AND (n.embedding IS NOT NULL OR n.content_embedding IS NOT NULL) "
+        "RETURN count(n) AS n"
+    )
+    assert _scalar(db, query) == 0

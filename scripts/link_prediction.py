@@ -88,7 +88,7 @@ class Settings:
     max_test: int = 4000
     val_share: float = 0.15
     test_share: float = 0.2
-    top_k: int = 3
+    top_k: int = 1  # the threshold is calibrated on the top-1 guess, so we only write that one
 
 
 @dataclass
@@ -253,12 +253,14 @@ def top1(scores: np.ndarray, pairs: PairSet) -> list[tuple[float, bool]]:
 
 def choose_threshold(
     predictions: list[tuple[float, bool]], target: float = TARGET_PRECISION, minimum: int = 20
-) -> float:
-    """Lowest score threshold (>= 0.5) whose top-1 precision is still >= target (0.5 if none).
+) -> float | None:
+    """Lowest score threshold (>= 0.5) whose top-1 precision is still >= target.
 
-    Ties are kept together: a threshold keeps every prediction with a score >= it.
+    Returns None when no threshold reaches the target: then we write nothing rather
+    than predictions we know are worse than promised. Ties are kept together: a
+    threshold keeps every prediction with a score >= it.
     """
-    chosen = 0.5
+    chosen = None
     kept = correct = 0
     for score in sorted({score for score, _ in predictions}, reverse=True):
         same = [ok for value, ok in predictions if value == score]
@@ -268,11 +270,37 @@ def choose_threshold(
     return chosen
 
 
-def precision_coverage(predictions: list[tuple[float, bool]], threshold: float) -> tuple[float, float]:
+def precision_coverage(predictions: list[tuple[float, bool]], threshold: float | None) -> tuple[float | None, float]:
     """Precision of the top-1 predictions above the threshold, and the share of children that get one."""
+    if threshold is None:
+        return None, 0.0
     kept = [ok for score, ok in predictions if score >= threshold]
     precision = sum(kept) / len(kept) if kept else 0.0
     return precision, len(kept) / len(predictions) if predictions else 0.0
+
+
+POPULARITY = ["candidate_log_downloads", "candidate_log_likes"]
+
+
+class WithoutFeatures:
+    """A model trained without some columns: used to measure how much popularity helps.
+
+    Downloads and likes are today's numbers, not the ones known when the child was
+    created, so we check the result does not rely on them only.
+    """
+
+    def __init__(self, model, dropped: list[str]):
+        self.model = model
+        self.keep = [i for i, name in enumerate(FEATURES) if name not in dropped]
+
+    def fit(self, features: np.ndarray, labels: np.ndarray):
+        """Fit on the kept columns."""
+        self.model.fit(features[:, self.keep], labels)
+        return self
+
+    def predict_proba(self, features: np.ndarray) -> np.ndarray:
+        """Predict from the kept columns."""
+        return self.model.predict_proba(features[:, self.keep])
 
 
 def plausible_scores(model, features: np.ndarray) -> np.ndarray:
@@ -412,6 +440,14 @@ def run(client: Neo4jClient, cfg: Settings) -> dict:  # pylint: disable=too-many
         if val_mrr > best_mrr:
             best_name, best_model, best_mrr = name, model, val_mrr
 
+    ablation = WithoutFeatures(make_models()["gradient_boosting"], POPULARITY)
+    ablation.fit(pairs["train"].features, pairs["train"].labels)
+    info["test"].append(
+        evaluate(
+            "gradient_boosting without popularity", ablation.predict_proba(pairs["test"].features)[:, 1], pairs["test"]
+        )
+    )
+
     threshold = choose_threshold(top1(plausible_scores(best_model, pairs["val"].features), pairs["val"]))
     test_scores = plausible_scores(best_model, pairs["test"].features)
     info["test"].append(evaluate(f"{best_name} + name rule", test_scores, pairs["test"]))
@@ -422,15 +458,20 @@ def run(client: Neo4jClient, cfg: Settings) -> dict:  # pylint: disable=too-many
         "model (best validation MRR)": best_name,
         "model_version": version,
         "name rule": f"candidate keeps >= {MIN_NAME_SCORE:.0%} of the child's name information",
-        "threshold (top-1 precision >= 0.8 on validation)": round(threshold, 3),
+        "threshold (top-1 precision >= 0.8 on validation)": (
+            round(threshold, 3) if threshold is not None else "none reached the target: nothing written"
+        ),
         "test top-1 precision above threshold": precision,
         "test children covered above threshold": coverage,
+        "edges written per model": "1 (the top-1 guess, the one the threshold was measured on)",
     }
     info["weights"] = feature_weights(best_model, pairs["test"])
 
     child_counts = [int(r["child_count"]) for r in rows]
     targets = orphans(table, has_parent, child_counts)
-    predictions = predict_orphans(table, names, best_model, targets, threshold, cfg, version)
+    predictions = []
+    if threshold is not None:
+        predictions = predict_orphans(table, names, best_model, targets, threshold, cfg, version)
     client.write(CLEAR_QUERY)
     for chunk in batches(predictions, 5000):
         client.write(WRITE_QUERY, {"rows": chunk})
