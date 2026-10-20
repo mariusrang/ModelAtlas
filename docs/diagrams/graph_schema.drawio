@@ -1,14 +1,14 @@
 <mxfile host="app.diagrams.net" type="device">
   <diagram id="modelatlas-schema" name="Graph schema">
-    <mxGraphModel dx="1300" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1280" pageHeight="860" math="0" shadow="0">
+    <mxGraphModel dx="1300" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1280" pageHeight="900" math="0" shadow="0">
       <root>
         <mxCell id="0"/>
         <mxCell id="1" parent="0"/>
         <mxCell id="title" value="&lt;b style='font-size:18px'&gt;ModelAtlas: Neo4j graph schema&lt;/b&gt;" style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=top;fontSize=12;" vertex="1" parent="1">
           <mxGeometry x="40" y="10" width="700" height="30" as="geometry"/>
         </mxCell>
-        <mxCell id="model" value="&lt;div style=&quot;text-align:center;font-size:14px&quot;&gt;&lt;b&gt;Model&lt;/b&gt;&lt;/div&gt;&lt;hr style=&quot;border:none;border-top:1px solid #6c8ebf;margin:4px 0&quot;&gt;&lt;div style=&quot;text-align:left&quot;&gt;&lt;u&gt;id&lt;/u&gt;: string&lt;br&gt;downloads: int&lt;br&gt;likes: int&lt;br&gt;task: string&lt;br&gt;params_b: float&lt;br&gt;lineage_depth: int&lt;br&gt;descendant_count: int&lt;br&gt;&lt;span style='color:#666666'&gt;+ author, created_at, formats, root_ids...&lt;/span&gt;&lt;/div&gt;" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;align=center;verticalAlign=top;spacingLeft=10;spacingTop=4;spacingRight=6;fontSize=12;fontFamily=Helvetica;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=2;" vertex="1" parent="1">
-          <mxGeometry x="500" y="270" width="280" height="180" as="geometry"/>
+        <mxCell id="model" value="&lt;div style=&quot;text-align:center;font-size:14px&quot;&gt;&lt;b&gt;Model&lt;/b&gt;&lt;/div&gt;&lt;hr style=&quot;border:none;border-top:1px solid #6c8ebf;margin:4px 0&quot;&gt;&lt;div style=&quot;text-align:left&quot;&gt;&lt;u&gt;id&lt;/u&gt;: string&lt;br&gt;downloads: int&lt;br&gt;likes: int&lt;br&gt;task: string&lt;br&gt;params_b: float&lt;br&gt;lineage_depth: int&lt;br&gt;descendant_count: int&lt;br&gt;&lt;span style='color:#666666'&gt;+ author, created_at, formats, root_ids...&lt;/span&gt;&lt;br&gt;&lt;span style='color:#666666'&gt;pagerank, family_id, community&lt;br&gt;embedding, content_embedding&lt;br&gt;(GDS, DERIVED)&lt;/span&gt;&lt;/div&gt;" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;align=center;verticalAlign=top;spacingLeft=10;spacingTop=4;spacingRight=6;fontSize=12;fontFamily=Helvetica;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="500" y="270" width="280" height="228" as="geometry"/>
         </mxCell>
         <mxCell id="org" value="&lt;div style=&quot;text-align:center;font-size:14px&quot;&gt;&lt;b&gt;Organization&lt;/b&gt;&lt;/div&gt;&lt;hr style=&quot;border:none;border-top:1px solid #82b366;margin:4px 0&quot;&gt;&lt;div style=&quot;text-align:left&quot;&gt;&lt;u&gt;id&lt;/u&gt;: string&lt;/div&gt;" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;align=center;verticalAlign=top;spacingLeft=10;spacingTop=4;spacingRight=6;fontSize=12;fontFamily=Helvetica;fillColor=#d5e8d4;strokeColor=#82b366;strokeWidth=1;" vertex="1" parent="1">
           <mxGeometry x="70" y="70" width="210" height="70" as="geometry"/>
@@ -16,23 +16,23 @@
         <mxCell id="lic" value="&lt;div style=&quot;text-align:center;font-size:14px&quot;&gt;&lt;b&gt;License&lt;/b&gt;&lt;/div&gt;&lt;hr style=&quot;border:none;border-top:1px solid #d6b656;margin:4px 0&quot;&gt;&lt;div style=&quot;text-align:left&quot;&gt;&lt;u&gt;id&lt;/u&gt;: string&lt;br&gt;family: string&lt;br&gt;commercial_use: bool | 'conditional'&lt;/div&gt;" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;align=center;verticalAlign=top;spacingLeft=10;spacingTop=4;spacingRight=6;fontSize=12;fontFamily=Helvetica;fillColor=#fff2cc;strokeColor=#d6b656;strokeWidth=1;" vertex="1" parent="1">
           <mxGeometry x="530" y="50" width="220" height="100" as="geometry"/>
         </mxCell>
-        <mxCell id="ds" value="&lt;div style=&quot;text-align:center;font-size:14px&quot;&gt;&lt;b&gt;Dataset&lt;/b&gt;&lt;/div&gt;&lt;hr style=&quot;border:none;border-top:1px solid #9673a6;margin:4px 0&quot;&gt;&lt;div style=&quot;text-align:left&quot;&gt;&lt;u&gt;id&lt;/u&gt;: string&lt;/div&gt;" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;align=center;verticalAlign=top;spacingLeft=10;spacingTop=4;spacingRight=6;fontSize=12;fontFamily=Helvetica;fillColor=#e1d5e7;strokeColor=#9673a6;strokeWidth=1;" vertex="1" parent="1">
-          <mxGeometry x="1000" y="70" width="210" height="70" as="geometry"/>
+        <mxCell id="ds" value="&lt;div style=&quot;text-align:center;font-size:14px&quot;&gt;&lt;b&gt;Dataset&lt;/b&gt;&lt;/div&gt;&lt;div style=&quot;text-align:center;font-size:10px;color:#555555&quot;&gt;&lt;i&gt;properties from the dataset cards (2nd source)&lt;/i&gt;&lt;/div&gt;&lt;hr style=&quot;border:none;border-top:1px solid #9673a6;margin:4px 0&quot;&gt;&lt;div style=&quot;text-align:left&quot;&gt;&lt;u&gt;id&lt;/u&gt;: string&lt;br&gt;listed: bool&lt;br&gt;downloads: int&lt;br&gt;size_category: string&lt;br&gt;task_categories: list&lt;/div&gt;" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;align=center;verticalAlign=top;spacingLeft=10;spacingTop=4;spacingRight=6;fontSize=12;fontFamily=Helvetica;fillColor=#e1d5e7;strokeColor=#9673a6;strokeWidth=1;" vertex="1" parent="1">
+          <mxGeometry x="1010" y="40" width="230" height="136" as="geometry"/>
         </mxCell>
         <mxCell id="arch" value="&lt;div style=&quot;text-align:center;font-size:14px&quot;&gt;&lt;b&gt;Architecture&lt;/b&gt;&lt;/div&gt;&lt;hr style=&quot;border:none;border-top:1px solid #666666;margin:4px 0&quot;&gt;&lt;div style=&quot;text-align:left&quot;&gt;&lt;u&gt;id&lt;/u&gt;: string&lt;/div&gt;" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;align=center;verticalAlign=top;spacingLeft=10;spacingTop=4;spacingRight=6;fontSize=12;fontFamily=Helvetica;fillColor=#f5f5f5;strokeColor=#666666;strokeWidth=1;" vertex="1" parent="1">
           <mxGeometry x="40" y="325" width="210" height="70" as="geometry"/>
         </mxCell>
-        <mxCell id="paper" value="&lt;div style=&quot;text-align:center;font-size:14px&quot;&gt;&lt;b&gt;Paper&lt;/b&gt;&lt;/div&gt;&lt;hr style=&quot;border:none;border-top:1px solid #b85450;margin:4px 0&quot;&gt;&lt;div style=&quot;text-align:left&quot;&gt;&lt;u&gt;arxiv_id&lt;/u&gt;: string&lt;/div&gt;" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;align=center;verticalAlign=top;spacingLeft=10;spacingTop=4;spacingRight=6;fontSize=12;fontFamily=Helvetica;fillColor=#f8cecc;strokeColor=#b85450;strokeWidth=1;" vertex="1" parent="1">
-          <mxGeometry x="1030" y="325" width="210" height="70" as="geometry"/>
-        </mxCell>
         <mxCell id="lang" value="&lt;div style=&quot;text-align:center;font-size:14px&quot;&gt;&lt;b&gt;Language&lt;/b&gt;&lt;/div&gt;&lt;hr style=&quot;border:none;border-top:1px solid #10739e;margin:4px 0&quot;&gt;&lt;div style=&quot;text-align:left&quot;&gt;&lt;u&gt;code&lt;/u&gt;: string&lt;/div&gt;" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;align=center;verticalAlign=top;spacingLeft=10;spacingTop=4;spacingRight=6;fontSize=12;fontFamily=Helvetica;fillColor=#b1ddf0;strokeColor=#10739e;strokeWidth=1;" vertex="1" parent="1">
-          <mxGeometry x="60" y="640" width="210" height="70" as="geometry"/>
+          <mxGeometry x="1025" y="340" width="200" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="paper" value="&lt;div style=&quot;text-align:center;font-size:14px&quot;&gt;&lt;b&gt;Paper&lt;/b&gt;&lt;/div&gt;&lt;hr style=&quot;border:none;border-top:1px solid #b85450;margin:4px 0&quot;&gt;&lt;div style=&quot;text-align:left&quot;&gt;&lt;u&gt;arxiv_id&lt;/u&gt;: string&lt;/div&gt;" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;align=center;verticalAlign=top;spacingLeft=10;spacingTop=4;spacingRight=6;fontSize=12;fontFamily=Helvetica;fillColor=#f8cecc;strokeColor=#b85450;strokeWidth=1;" vertex="1" parent="1">
+          <mxGeometry x="60" y="660" width="210" height="70" as="geometry"/>
         </mxCell>
         <mxCell id="task" value="&lt;div style=&quot;text-align:center;font-size:14px&quot;&gt;&lt;b&gt;Task&lt;/b&gt;&lt;/div&gt;&lt;hr style=&quot;border:none;border-top:1px solid #d79b00;margin:4px 0&quot;&gt;&lt;div style=&quot;text-align:left&quot;&gt;&lt;u&gt;id&lt;/u&gt;: string&lt;/div&gt;" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;align=center;verticalAlign=top;spacingLeft=10;spacingTop=4;spacingRight=6;fontSize=12;fontFamily=Helvetica;fillColor=#ffe6cc;strokeColor=#d79b00;strokeWidth=1;" vertex="1" parent="1">
-          <mxGeometry x="1030" y="640" width="210" height="70" as="geometry"/>
+          <mxGeometry x="1030" y="660" width="210" height="70" as="geometry"/>
         </mxCell>
         <mxCell id="unlisted" value="&lt;div style=&quot;text-align:center;font-size:14px&quot;&gt;&lt;b&gt;Model:Unlisted&lt;/b&gt;&lt;/div&gt;&lt;div style=&quot;text-align:center;font-size:10px;color:#555555&quot;&gt;&lt;i&gt;parent that is not in the public dump&lt;/i&gt;&lt;/div&gt;&lt;hr style=&quot;border:none;border-top:1px solid #6c8ebf;margin:4px 0&quot;&gt;&lt;div style=&quot;text-align:left&quot;&gt;&lt;u&gt;id&lt;/u&gt;: string&lt;br&gt;author, lineage_depth, descendant_count, ...&lt;/div&gt;" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;align=center;verticalAlign=top;spacingLeft=10;spacingTop=4;spacingRight=6;fontSize=12;fontFamily=Helvetica;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=1;dashed=1;dashPattern=6 4;" vertex="1" parent="1">
-          <mxGeometry x="724" y="580" width="200" height="92" as="geometry"/>
+          <mxGeometry x="724" y="590" width="200" height="92" as="geometry"/>
         </mxCell>
         <mxCell id="e_org" value="PUBLISHED_BY" style="endArrow=block;endFill=1;html=1;rounded=0;fontSize=11;fontStyle=1;labelBackgroundColor=#ffffff;strokeColor=#555555;fontColor=#333333;exitX=0;exitY=0.1;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="model" target="org">
           <mxGeometry relative="1" as="geometry"/>
@@ -40,37 +40,65 @@
         <mxCell id="e_lic" value="HAS_LICENSE" style="endArrow=block;endFill=1;html=1;rounded=0;fontSize=11;fontStyle=1;labelBackgroundColor=#ffffff;strokeColor=#555555;fontColor=#333333;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" edge="1" parent="1" source="model" target="lic">
           <mxGeometry relative="1" as="geometry"/>
         </mxCell>
-        <mxCell id="e_ds" value="TRAINED_ON" style="endArrow=block;endFill=1;html=1;rounded=0;fontSize=11;fontStyle=1;labelBackgroundColor=#ffffff;strokeColor=#555555;fontColor=#333333;exitX=1;exitY=0.1;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="model" target="ds">
-          <mxGeometry relative="1" as="geometry"/>
+        <mxCell id="e_ds" value="TRAINED_ON" style="endArrow=block;endFill=1;html=1;rounded=0;fontSize=11;fontStyle=1;labelBackgroundColor=#ffffff;strokeColor=#555555;fontColor=#333333;exitX=1;exitY=0.1;exitDx=0;exitDy=0;entryX=0;entryY=0.75;entryDx=0;entryDy=0;" edge="1" parent="1" source="model" target="ds">
+          <mxGeometry x="0.45" relative="1" as="geometry"/>
         </mxCell>
         <mxCell id="e_arch" value="HAS_ARCHITECTURE" style="endArrow=block;endFill=1;html=1;rounded=0;fontSize=11;fontStyle=1;labelBackgroundColor=#ffffff;strokeColor=#555555;fontColor=#333333;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="model" target="arch">
           <mxGeometry relative="1" as="geometry"/>
         </mxCell>
-        <mxCell id="e_paper" value="CITES" style="endArrow=block;endFill=1;html=1;rounded=0;fontSize=11;fontStyle=1;labelBackgroundColor=#ffffff;strokeColor=#555555;fontColor=#333333;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="model" target="paper">
+        <mxCell id="e_lang" value="SUPPORTS" style="endArrow=block;endFill=1;html=1;rounded=0;fontSize=11;fontStyle=1;labelBackgroundColor=#ffffff;strokeColor=#555555;fontColor=#333333;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="model" target="lang">
           <mxGeometry relative="1" as="geometry"/>
         </mxCell>
-        <mxCell id="e_lang" value="SUPPORTS" style="endArrow=block;endFill=1;html=1;rounded=0;fontSize=11;fontStyle=1;labelBackgroundColor=#ffffff;strokeColor=#555555;fontColor=#333333;exitX=0;exitY=0.9;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="model" target="lang">
+        <mxCell id="e_paper" value="CITES" style="endArrow=block;endFill=1;html=1;rounded=0;fontSize=11;fontStyle=1;labelBackgroundColor=#ffffff;strokeColor=#555555;fontColor=#333333;exitX=0;exitY=0.9;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="model" target="paper">
           <mxGeometry relative="1" as="geometry"/>
         </mxCell>
         <mxCell id="e_task" value="PERFORMS" style="endArrow=block;endFill=1;html=1;rounded=0;fontSize=11;fontStyle=1;labelBackgroundColor=#ffffff;strokeColor=#555555;fontColor=#333333;exitX=1;exitY=0.9;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="model" target="task">
           <mxGeometry relative="1" as="geometry"/>
         </mxCell>
+        <mxCell id="e_ds_lic" value="HAS_LICENSE" style="endArrow=block;endFill=1;html=1;rounded=0;fontSize=11;fontStyle=1;labelBackgroundColor=#ffffff;strokeColor=#555555;fontColor=#333333;exitX=0;exitY=0.3;exitDx=0;exitDy=0;entryX=1;entryY=0.4;entryDx=0;entryDy=0;" edge="1" parent="1" source="ds" target="lic">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e_ds_lang" value="SUPPORTS" style="endArrow=block;endFill=1;html=1;rounded=0;fontSize=11;fontStyle=1;labelBackgroundColor=#ffffff;strokeColor=#555555;fontColor=#333333;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="ds" target="lang">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
         <mxCell id="e_lineage" value="" style="endArrow=block;endFill=1;html=1;rounded=0;fontSize=11;fontStyle=1;labelBackgroundColor=#ffffff;strokeColor=#555555;fontColor=#333333;strokeWidth=2;strokeColor=#6c8ebf;exitX=0.15;exitY=1;exitDx=0;exitDy=0;entryX=0.45;entryY=1;entryDx=0;entryDy=0;" edge="1" parent="1" source="model" target="model">
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
-              <mxPoint x="542" y="520"/>
-              <mxPoint x="626" y="520"/>
+              <mxPoint x="542" y="540"/>
+              <mxPoint x="626" y="540"/>
             </Array>
           </mxGeometry>
         </mxCell>
         <mxCell id="lineage_label" value="&lt;b&gt;FINETUNED_FROM | ADAPTER_OF&lt;br&gt;QUANTIZED_FROM | MERGED_FROM&lt;/b&gt;&lt;br&gt;Model → Model (child → parent)&lt;br&gt;property: &lt;i&gt;declared&lt;/i&gt; (bool)" style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=top;fontSize=12;align=center;spacing=4;fillColor=#ffffff;strokeColor=#6c8ebf;rounded=1;arcSize=8;" vertex="1" parent="1">
-          <mxGeometry x="440" y="532" width="268" height="80" as="geometry"/>
+          <mxGeometry x="440" y="552" width="268" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="e_similar" value="" style="endArrow=block;endFill=1;html=1;rounded=0;fontSize=11;fontStyle=1;labelBackgroundColor=#ffffff;strokeColor=#555555;fontColor=#333333;dashed=1;dashPattern=2 3;strokeWidth=2;strokeColor=#9673a6;exitX=0.66;exitY=0;exitDx=0;exitDy=0;entryX=0.86;entryY=0;entryDx=0;entryDy=0;startArrow=block;startFill=1;" edge="1" parent="1" source="model" target="model">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="685" y="242"/>
+              <mxPoint x="741" y="242"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="similar_label" value="&lt;b&gt;SIMILAR_TO {score}&lt;/b&gt;&lt;br&gt;&lt;i&gt;GDS, DERIVED&lt;/i&gt;" style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=top;fontSize=12;align=center;spacing=4;fillColor=#ffffff;strokeColor=#9673a6;dashed=1;dashPattern=2 3;rounded=1;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="700" y="176" width="165" height="52" as="geometry"/>
         </mxCell>
         <mxCell id="e_unlisted" value="same node + label" style="endArrow=none;dashed=1;html=1;fontSize=10;fontStyle=2;labelBackgroundColor=#ffffff;strokeColor=#6c8ebf;fontColor=#555555;exitX=0.85;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="model" target="unlisted">
           <mxGeometry relative="1" as="geometry"/>
         </mxCell>
-        <mxCell id="legend" value="&lt;b&gt;Legend&lt;/b&gt;&lt;br&gt;Rounded box = node label, &lt;u&gt;underlined&lt;/u&gt; = key property (uniqueness constraint).&lt;br&gt;Arrow = relationship, drawn in the stored direction. Dashed box = extra label &lt;i&gt;:Unlisted&lt;/i&gt; on a Model.&lt;br&gt;&lt;b&gt;Schema: 8 uniqueness constraints, 7 range indexes, 1 fulltext index (model_search)&lt;/b&gt; (app/database/schema.py)" style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=top;fontSize=12;spacing=8;fillColor=#fafafa;strokeColor=#999999;rounded=1;arcSize=6;" vertex="1" parent="1">
-          <mxGeometry x="40" y="750" width="700" height="86" as="geometry"/>
+        <mxCell id="legend" value="&lt;b&gt;Legend&lt;/b&gt;&lt;br&gt;Rounded box = node label, &lt;u&gt;underlined&lt;/u&gt; = key property (uniqueness constraint).&lt;br&gt;Arrow = relationship, drawn in the stored direction. Dashed box = extra label &lt;i&gt;:Unlisted&lt;/i&gt; on a Model.&lt;br&gt;Dotted = computed (GDS or ML), never declared in a card.&lt;br&gt;&lt;b&gt;Schema: 8 uniqueness constraints, 10 range indexes (in addition to constraint indexes), 1 fulltext index (model_search)&lt;/b&gt; (app/database/schema.py)" style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=top;fontSize=12;spacing=8;fillColor=#fafafa;strokeColor=#999999;rounded=1;arcSize=6;" vertex="1" parent="1">
+          <mxGeometry x="40" y="770" width="1050" height="104" as="geometry"/>
+        </mxCell>
+        <mxCell id="e_predicted" value="" edge="1" parent="1" source="model" target="model" style="endArrow=block;endFill=1;html=1;rounded=0;dashed=1;dashPattern=2 3;strokeWidth=2;strokeColor=#b46504;exitX=1;exitY=0.62;exitDx=0;exitDy=0;entryX=1;entryY=0.9;entryDx=0;entryDy=0;">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="900" y="411"/>
+              <mxPoint x="900" y="475"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="predicted_label" vertex="1" parent="1" value="&lt;b&gt;PREDICTED_PARENT&lt;/b&gt;&lt;br&gt;{score, rank, model_version}&lt;br&gt;&lt;i&gt;link prediction, HYPOTHESIS&lt;/i&gt;&lt;br&gt;Model → Model (child → parent)" style="text;html=1;whiteSpace=wrap;align=center;verticalAlign=top;fontSize=12;spacing=6;fillColor=#fff4e6;strokeColor=#b46504;fontColor=#804800;dashed=1;dashPattern=2 3;rounded=1;arcSize=8;">
+          <mxGeometry x="930" y="436" width="310" height="84" as="geometry"/>
         </mxCell>
       </root>
     </mxGraphModel>
