@@ -21,7 +21,7 @@ from app.agent.schema import ALLOWED_LABELS, ALLOWED_PROPERTIES, ALLOWED_REL_TYP
 DEFAULT_LIMIT = 25
 MAX_LIMIT = 100
 
-_STRING = re.compile(r"'(?:\\.|[^'\\])*'|\"(?:\\.|[^\"\\])*\"")
+_IDENTIFIER = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 _WRITE = re.compile(
     (
         r"\b(CREATE|MERGE|DELETE|DETACH|SET|REMOVE|DROP|FOREACH|LOAD\s+CSV|IN\s+TRANSACTIONS|"
@@ -56,7 +56,30 @@ class GuardResult:
 
 
 def _mask_strings(cypher: str) -> str:
-    return _STRING.sub("''", cypher)
+    """Blank string literals and odd `quoted names`, in one left-to-right scan.
+
+    One scan (not two regexes) so a quote inside backticks can't open a fake string
+    that hides the rest of the query: MATCH (`x'`:Model) DETACH DELETE `x'` (found by
+    Ylias in the review of #13). A backtick name that is a plain identifier keeps its
+    text, so `Model` is still checked against the schema.
+    """
+    out, i = [], 0
+    while i < len(cypher):
+        char = cypher[i]
+        if char not in "'\"`":
+            out.append(char)
+            i += 1
+            continue
+        j = i + 1
+        while j < len(cypher) and cypher[j] != char:
+            j += 2 if cypher[j] == "\\" and char != "`" else 1
+        inside = cypher[i + 1 : j]
+        if char == "`":
+            out.append(inside if _IDENTIFIER.fullmatch(inside) else "quoted_name")
+        else:
+            out.append("''")
+        i = j + 1
+    return "".join(out)
 
 
 def _strip_fences(cypher: str) -> str:
@@ -84,7 +107,8 @@ def _schema_errors(masked: str) -> list[str]:
     for name in sorted(rel_types - ALLOWED_REL_TYPES):
         errors.append(f"unknown relationship type :{name} (allowed: {', '.join(sorted(ALLOWED_REL_TYPES))})")
     for name in sorted(set(_PROPERTY.findall(no_maps)) - ALLOWED_PROPERTIES):
-        errors.append(f"unknown property .{name}")
+        hint = " (Unlisted is a label: write WHERE NOT m:Unlisted)" if name.lower() == "unlisted" else ""
+        errors.append(f"unknown property .{name}{hint}")
     return errors
 
 

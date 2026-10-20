@@ -107,3 +107,20 @@ def test_variable_length_needs_a_bound(pattern, ok):
 def test_empty_and_non_read_queries():
     assert check_cypher("  ").errors == ["empty query"]
     assert any("must RETURN" in e for e in check_cypher("MATCH (m:Model) WITH m").errors)
+
+
+def test_a_quote_inside_backticks_cannot_hide_a_write():
+    # Ylias's bypass from the review of #13
+    result = check_cypher("MATCH (`x'`:Model) DETACH DELETE `x'` RETURN 1")
+    assert not result.passed
+    assert any("DELETE" in e for e in result.errors)
+
+
+def test_backtick_names_are_still_checked_against_the_schema():
+    assert check_cypher("MATCH (m:`Model`) RETURN m.id AS id").passed
+    assert any("unknown label :Secret" in e for e in check_cypher("MATCH (m:`Secret`) RETURN m.id AS id").errors)
+
+
+def test_unlisted_property_gets_a_hint():
+    errors = check_cypher("MATCH (m:Model) WHERE m.unlisted = false RETURN count(m) AS n").errors
+    assert any("WHERE NOT m:Unlisted" in e for e in errors)
