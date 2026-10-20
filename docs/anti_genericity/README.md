@@ -41,15 +41,17 @@ at the real data.
 | Task | Node + property (G1 `FOR_TASK` + `pipelineTag`, G2 `SOLVES` + `pipeline_tag`) | Node (`PERFORMS`, 102,893 edges, 56 tasks) + indexed property `Model.task` | Same idea as the generic answers. The property is the first filter of the recommender (index `model_task`); the node is for browsing ("all tasks") and the agent. |
 | Noise in the data | Not mentioned | Dropped by the ETL before loading | 105,310 spam models (`blockassist` / swarm checkpoints) dropped; 6,910 links to the template paper 1910.09700 dropped; 529 fake dataset links (`custom`, local files) dropped; 1,149 self-loops dropped and 1 cycle edge broken. |
 | Precomputed metrics | G1 caches `effectiveCommercialUse`, G2 caches `commercial_status` and `root_model_ids` | `lineage_depth`, `child_count`, `descendant_count`, `root_ids` on every model | We cache structure, which only changes when the data is reloaded, and never the license verdict, which changes each time a rule is fixed. Chains go up to 33 levels deep, but 99.6% are ≤ 5, so depth bounds are cheap. |
-| Predicted parents | Same edge with `source: inferred` (G1 `inferred_from_name`) | Planned: predictions stored apart from the real edges, as hypotheses with a confidence | A guessed edge in the same relationship type would be followed by every lineage and license query. Keeping it separate means a guess can never be shown as a fact. |
+| Predicted parents | Same edge with `source: inferred` (G1 `inferred_from_name`) | Separate `PREDICTED_PARENT {score, rank, model_version}` relationships, labelled `HYPOTHESIS` | A guessed edge in the same relationship type would be followed by every lineage and license query. Keeping it separate means a guess can never be shown as a fact. |
 | Trust labels | Only on benchmark scores (G1 `verified`, G2 `verified`) | Every API answer says `VERIFIED`, `DERIVED` or `HYPOTHESIS`; lineage edges have `declared` | The 60 raw edges with no kind are loaded as `FINETUNED_FROM` with `declared = false`, so "we guessed the kind" is never lost. |
 
-**Update: dataset licenses (second source).** Datasets now also come from a second source, the Hugging Face
-dataset cards. A dataset points to the same `License` nodes as the models with `HAS_LICENSE`, so one rule in
-`config/licenses.toml` covers both. 61.0% of the 15,495 datasets our models cite have a card, and 58 of them
-declare several licenses, which we all keep. The license check now also looks at the training data of the model
-and of its ancestors. Both generic schemas proposed licenses on datasets (section 4), so here we followed them; the
-difference is that our version is backed by real card data, with its coverage measured in `reports/etl_report.md`.
+**Update: dataset licenses and predicted parents.** Datasets now come from a second source, Hugging Face
+dataset cards, and have their own licenses through the same `License` nodes as models.
+Of the 15,495 cited datasets, 61.0% have a card and 58 declare several licenses, which we all keep
+([ETL report](../../reports/etl_report.md)).
+The license check also looks at the training data of the model and its ancestors.
+ML guesses use a separate `PREDICTED_PARENT` relationship marked `HYPOTHESIS`, never mixed with declared lineage.
+Both generic schemas included dataset licenses, but neither included measured coverage from a second source
+or a separate relationship for predicted parents.
 
 ## 3. Where the generic schema gives a WRONG answer
 
@@ -124,7 +126,7 @@ RETURN count(m) AS merges
   edge). We don't have benchmarks yet; we plan to add a `Benchmark` node, and G2's "score on the edge, with
   `source` and `verified`" is the simpler option for us.
 - **License of the training data.** Both put `LICENSED_UNDER` on `Dataset` too. They were right: it was a gap in
-  our license check (a model trained on a non-commercial dataset may inherit the restriction), and we have now
+  our license check (a non-commercial or conditional dataset now raises at least `needs_review`), and we have now
   added it from the dataset cards (see the update at the end of section 2).
 - **Similarity.** Both suggest `SIMILAR_TO` edges. We now compute them with GDS Node Similarity on the datasets and
   papers two models share, and store them as `SIMILAR_TO {score}` labelled DERIVED, never as declared facts.
