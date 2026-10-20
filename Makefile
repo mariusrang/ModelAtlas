@@ -17,7 +17,11 @@ VENV_PY := .venv/bin/python
 endif
 
 PY_SOURCES := app ui scripts tests
+# read and write files as UTF-8 on Windows too (isort could not parse files with emojis in cp1252)
+export PYTHONUTF8 := 1
 OLLAMA_MODEL ?= qwen2.5:7b-instruct
+# `make ui` on your machine talks to the API behind Nginx (docker stack); override for `make run`
+export API_BASE_URL ?= http://localhost/api
 
 help: ## Show this help
 	@$(SYS_PY) scripts/dev.py help
@@ -35,7 +39,7 @@ env: ## Create .env from .env.example if you don't have one yet
 run: ## Run the API locally with auto-reload on http://localhost:8000 (needs Neo4j up)
 	$(VENV_PY) -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
-ui: ## Run the Streamlit UI locally on http://localhost:8501
+ui: ## Run the Streamlit UI locally on http://localhost:8501 (API_BASE_URL defaults to the docker stack)
 	$(VENV_PY) -m streamlit run ui/app.py
 
 docker-build: ## Build the api and ui Docker images
