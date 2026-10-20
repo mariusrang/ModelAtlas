@@ -105,3 +105,26 @@ question = "Can I use facebook/nllb-200-distilled-600M in a commercial translati
 expect = "answer"
 tools = ["license_check"]
 mentions = ["cc-by-nc-4.0", "not_allowed"]
+
+# counting and ranking questions to the agent evaluation
+
+[[case]]
+id = "count-listed-models"
+kind = "normal"
+question = "How many listed Model nodes are in the graph, excluding nodes labelled Unlisted?"
+expect = "answer"
+tools = ["text_to_cypher"]
+
+[[case]]
+id = "rank-publishers-by-model-count"
+kind = "normal"
+question = "Which five organizations publish the most listed models in the graph? Exclude Unlisted models and show the model count for each organization."
+expect = "answer"
+tools = ["text_to_cypher"]
+
+[[case]]
+id = "rank-influential-text-generation"
+kind = "normal"
+question = "Which text-generation models are most influential according to PageRank on the lineage graph?"
+expect = "answer"
+tools = ["influential_models"]
