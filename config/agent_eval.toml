@@ -128,3 +128,27 @@ kind = "normal"
 question = "Which text-generation models are most influential according to PageRank on the lineage graph?"
 expect = "answer"
 tools = ["influential_models"]
+
+# recommendation, similarity and prediction questions
+
+[[case]]
+id = "recommend-small-translation"
+kind = "normal"
+question = "Recommend a translation model with at most 1B parameters. Include its exact model ID and declared license."
+expect = "answer"
+tools = ["recommend"]
+mentions = ["translation"]
+
+[[case]]
+id = "similar-minilm-shared-data"
+kind = "normal"
+question = "Which models are similar to sentence-transformers/all-MiniLM-L6-v2 based on shared training datasets or cited papers?"
+expect = "answer"
+tools = ["similar_models"]
+
+[[case]]
+id = "predict-qwen-coder-fp8-parent"
+kind = "normal"
+question = "What parent is predicted for Qwen/Qwen3-Coder-Next-FP8? Explain that this is a machine-learning hypothesis rather than a declared lineage link."
+expect = "answer"
+tools = ["predicted_parents"]
