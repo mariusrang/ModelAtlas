@@ -60,11 +60,9 @@ class NameIndex:
             by_base[self.bases[i]].append(i)
         n_docs = max(len(self.ids), 1)
         self.idf = {tok: math.log(n_docs / df) for tok, df in doc_freq.items()}
-        # very common tokens ("instruct", "7b") would match thousands of models: keep
-        # only the most downloaded ones in their list, parents are usually popular
-        self.postings = {
-            tok: sorted(rows, key=lambda r: -self.downloads[r])[: self.max_posting] for tok, rows in postings.items()
-        }
+        # most downloaded first: for a very common token ("instruct", "7b") we only look at the
+        # first `max_posting` ALLOWED models (see candidates), parents are usually popular
+        self.postings = {tok: sorted(rows, key=lambda r: -self.downloads[r]) for tok, rows in postings.items()}
         self.by_base = dict(by_base)
 
     def name_score(self, child_row: int, cand_row: int) -> float:
@@ -76,17 +74,23 @@ class NameIndex:
     def candidates(self, child_row: int, allowed, limit: int = 50) -> list[int]:
         """Best `limit` candidate parents of a model, by shared rare tokens.
 
-        `allowed(row)` filters candidates (e.g. created before the child).
+        `allowed(row)` filters candidates (e.g. created before the child). It is applied
+        BEFORE the `max_posting` cap, so newer popular models can't push an older parent
+        out of the list (found by Lucas in the review of #12).
         A candidate with exactly the child's base name is always kept first.
         """
         scores: defaultdict = defaultdict(float)
         for tok in self.token_sets[child_row]:
-            weight = self.idf.get(tok, 0.0)
+            weight, kept = self.idf.get(tok, 0.0), 0
             for row in self.postings.get(tok, []):
-                if row != child_row:
-                    scores[row] += weight
+                if row == child_row or not allowed(row):
+                    continue
+                scores[row] += weight
+                kept += 1
+                if kept >= self.max_posting:
+                    break
         for row in self.by_base.get(self.bases[child_row], []):
-            if row != child_row:
+            if row != child_row and allowed(row):
                 scores[row] += 100.0  # same name once the copy suffixes are removed
         ranked = sorted(scores, key=lambda r: (-scores[r], -self.downloads[r]))
-        return [r for r in ranked if allowed(r)][:limit]
+        return ranked[:limit]
