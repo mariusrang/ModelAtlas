@@ -29,6 +29,7 @@ Rules:
 - read only: MATCH / OPTIONAL MATCH / WITH / UNWIND / RETURN, never CREATE, MERGE, SET, DELETE, CALL procedures;
 - use only the labels, relationship types and properties listed above;
 - variable-length patterns need an upper bound, at most 6 hops (e.g. -[:FINETUNED_FROM*1..3]->);
+- `Unlisted` is a label, not a property: "listed models" means MATCH (m:Model) WHERE NOT m:Unlisted;
 - match model ids exactly ({{id: "org/name"}}) or with toLower(m.id) CONTAINS "...";
 - return plain values with clear aliases (m.id AS model, m.downloads AS downloads), never whole nodes;
 - end with ORDER BY and LIMIT (at most 25 rows).
@@ -47,6 +48,13 @@ EXAMPLES = [
         (
             'MATCH (q:Model)-[:QUANTIZED_FROM]->(:Model {id: "mistralai/Mistral-7B-v0.1"})\n'
             "RETURN count(q) AS quantized_versions\nLIMIT 1"
+        ),
+    ),
+    (
+        "How many listed models declare the apache-2.0 license?",
+        (
+            'MATCH (m:Model)-[:HAS_LICENSE]->(:License {id: "apache-2.0"})\n'
+            "WHERE NOT m:Unlisted\nRETURN count(m) AS models\nLIMIT 1"
         ),
     ),
 ]
