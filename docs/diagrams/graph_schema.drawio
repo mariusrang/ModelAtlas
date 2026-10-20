@@ -7,8 +7,8 @@
         <mxCell id="title" value="&lt;b style='font-size:18px'&gt;ModelAtlas: Neo4j graph schema&lt;/b&gt;" style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=top;fontSize=12;" vertex="1" parent="1">
           <mxGeometry x="40" y="10" width="700" height="30" as="geometry"/>
         </mxCell>
-        <mxCell id="model" value="&lt;div style=&quot;text-align:center;font-size:14px&quot;&gt;&lt;b&gt;Model&lt;/b&gt;&lt;/div&gt;&lt;hr style=&quot;border:none;border-top:1px solid #6c8ebf;margin:4px 0&quot;&gt;&lt;div style=&quot;text-align:left&quot;&gt;&lt;u&gt;id&lt;/u&gt;: string&lt;br&gt;downloads: int&lt;br&gt;likes: int&lt;br&gt;task: string&lt;br&gt;params_b: float&lt;br&gt;lineage_depth: int&lt;br&gt;descendant_count: int&lt;br&gt;&lt;span style='color:#666666'&gt;+ author, created_at, formats, root_ids...&lt;/span&gt;&lt;br&gt;&lt;span style='color:#666666'&gt;pagerank, family_id, community, embedding&lt;br&gt;(GDS, DERIVED)&lt;/span&gt;&lt;/div&gt;" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;align=center;verticalAlign=top;spacingLeft=10;spacingTop=4;spacingRight=6;fontSize=12;fontFamily=Helvetica;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=2;" vertex="1" parent="1">
-          <mxGeometry x="500" y="270" width="280" height="198" as="geometry"/>
+        <mxCell id="model" value="&lt;div style=&quot;text-align:center;font-size:14px&quot;&gt;&lt;b&gt;Model&lt;/b&gt;&lt;/div&gt;&lt;hr style=&quot;border:none;border-top:1px solid #6c8ebf;margin:4px 0&quot;&gt;&lt;div style=&quot;text-align:left&quot;&gt;&lt;u&gt;id&lt;/u&gt;: string&lt;br&gt;downloads: int&lt;br&gt;likes: int&lt;br&gt;task: string&lt;br&gt;params_b: float&lt;br&gt;lineage_depth: int&lt;br&gt;descendant_count: int&lt;br&gt;&lt;span style='color:#666666'&gt;+ author, created_at, formats, root_ids...&lt;/span&gt;&lt;br&gt;&lt;span style='color:#666666'&gt;pagerank, family_id, community&lt;br&gt;embedding, content_embedding&lt;br&gt;(GDS, DERIVED)&lt;/span&gt;&lt;/div&gt;" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;align=center;verticalAlign=top;spacingLeft=10;spacingTop=4;spacingRight=6;fontSize=12;fontFamily=Helvetica;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="500" y="270" width="280" height="228" as="geometry"/>
         </mxCell>
         <mxCell id="org" value="&lt;div style=&quot;text-align:center;font-size:14px&quot;&gt;&lt;b&gt;Organization&lt;/b&gt;&lt;/div&gt;&lt;hr style=&quot;border:none;border-top:1px solid #82b366;margin:4px 0&quot;&gt;&lt;div style=&quot;text-align:left&quot;&gt;&lt;u&gt;id&lt;/u&gt;: string&lt;/div&gt;" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;align=center;verticalAlign=top;spacingLeft=10;spacingTop=4;spacingRight=6;fontSize=12;fontFamily=Helvetica;fillColor=#d5e8d4;strokeColor=#82b366;strokeWidth=1;" vertex="1" parent="1">
           <mxGeometry x="70" y="70" width="210" height="70" as="geometry"/>
@@ -72,7 +72,7 @@
         <mxCell id="lineage_label" value="&lt;b&gt;FINETUNED_FROM | ADAPTER_OF&lt;br&gt;QUANTIZED_FROM | MERGED_FROM&lt;/b&gt;&lt;br&gt;Model → Model (child → parent)&lt;br&gt;property: &lt;i&gt;declared&lt;/i&gt; (bool)" style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=top;fontSize=12;align=center;spacing=4;fillColor=#ffffff;strokeColor=#6c8ebf;rounded=1;arcSize=8;" vertex="1" parent="1">
           <mxGeometry x="440" y="552" width="268" height="80" as="geometry"/>
         </mxCell>
-        <mxCell id="e_similar" value="" style="endArrow=block;endFill=1;html=1;rounded=0;fontSize=11;fontStyle=1;labelBackgroundColor=#ffffff;strokeColor=#555555;fontColor=#333333;dashed=1;dashPattern=2 3;strokeWidth=2;strokeColor=#9673a6;exitX=0.66;exitY=0;exitDx=0;exitDy=0;entryX=0.86;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="model" target="model">
+        <mxCell id="e_similar" value="" style="endArrow=block;endFill=1;html=1;rounded=0;fontSize=11;fontStyle=1;labelBackgroundColor=#ffffff;strokeColor=#555555;fontColor=#333333;dashed=1;dashPattern=2 3;strokeWidth=2;strokeColor=#9673a6;exitX=0.66;exitY=0;exitDx=0;exitDy=0;entryX=0.86;entryY=0;entryDx=0;entryDy=0;startArrow=block;startFill=1;" edge="1" parent="1" source="model" target="model">
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
               <mxPoint x="685" y="242"/>
@@ -80,14 +80,25 @@
             </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="similar_label" value="&lt;b&gt;SIMILAR_TO {score}&lt;/b&gt;&lt;br&gt;&lt;i&gt;written by GDS (DERIVED)&lt;/i&gt;" style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=top;fontSize=12;align=center;spacing=4;fillColor=#ffffff;strokeColor=#9673a6;dashed=1;dashPattern=2 3;rounded=1;arcSize=8;" vertex="1" parent="1">
+        <mxCell id="similar_label" value="&lt;b&gt;SIMILAR_TO {score}&lt;/b&gt;&lt;br&gt;&lt;i&gt;GDS, DERIVED&lt;/i&gt;" style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=top;fontSize=12;align=center;spacing=4;fillColor=#ffffff;strokeColor=#9673a6;dashed=1;dashPattern=2 3;rounded=1;arcSize=8;" vertex="1" parent="1">
           <mxGeometry x="700" y="176" width="165" height="52" as="geometry"/>
         </mxCell>
         <mxCell id="e_unlisted" value="same node + label" style="endArrow=none;dashed=1;html=1;fontSize=10;fontStyle=2;labelBackgroundColor=#ffffff;strokeColor=#6c8ebf;fontColor=#555555;exitX=0.85;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="model" target="unlisted">
           <mxGeometry relative="1" as="geometry"/>
         </mxCell>
-        <mxCell id="legend" value="&lt;b&gt;Legend&lt;/b&gt;&lt;br&gt;Rounded box = node label, &lt;u&gt;underlined&lt;/u&gt; = key property (uniqueness constraint).&lt;br&gt;Arrow = relationship, drawn in the stored direction. Dashed box = extra label &lt;i&gt;:Unlisted&lt;/i&gt; on a Model.&lt;br&gt;Dotted = computed by GDS, not declared in a card.&lt;br&gt;&lt;b&gt;Schema: 8 uniqueness constraints, 10 range indexes, 1 fulltext index (model_search)&lt;/b&gt; (app/database/schema.py)" style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=top;fontSize=12;spacing=8;fillColor=#fafafa;strokeColor=#999999;rounded=1;arcSize=6;" vertex="1" parent="1">
-          <mxGeometry x="40" y="770" width="760" height="104" as="geometry"/>
+        <mxCell id="legend" value="&lt;b&gt;Legend&lt;/b&gt;&lt;br&gt;Rounded box = node label, &lt;u&gt;underlined&lt;/u&gt; = key property (uniqueness constraint).&lt;br&gt;Arrow = relationship, drawn in the stored direction. Dashed box = extra label &lt;i&gt;:Unlisted&lt;/i&gt; on a Model.&lt;br&gt;Dotted = computed (GDS or ML), never declared in a card.&lt;br&gt;&lt;b&gt;Schema: 8 uniqueness constraints, 10 range indexes (in addition to constraint indexes), 1 fulltext index (model_search)&lt;/b&gt; (app/database/schema.py)" style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=top;fontSize=12;spacing=8;fillColor=#fafafa;strokeColor=#999999;rounded=1;arcSize=6;" vertex="1" parent="1">
+          <mxGeometry x="40" y="770" width="1050" height="104" as="geometry"/>
+        </mxCell>
+        <mxCell id="e_predicted" value="" edge="1" parent="1" source="model" target="model" style="endArrow=block;endFill=1;html=1;rounded=0;dashed=1;dashPattern=2 3;strokeWidth=2;strokeColor=#b46504;exitX=1;exitY=0.62;exitDx=0;exitDy=0;entryX=1;entryY=0.9;entryDx=0;entryDy=0;">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="900" y="411"/>
+              <mxPoint x="900" y="475"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="predicted_label" vertex="1" parent="1" value="&lt;b&gt;PREDICTED_PARENT&lt;/b&gt;&lt;br&gt;{score, rank, model_version}&lt;br&gt;&lt;i&gt;link prediction, HYPOTHESIS&lt;/i&gt;&lt;br&gt;Model → Model (child → parent)" style="text;html=1;whiteSpace=wrap;align=center;verticalAlign=top;fontSize=12;spacing=6;fillColor=#fff4e6;strokeColor=#b46504;fontColor=#804800;dashed=1;dashPattern=2 3;rounded=1;arcSize=8;">
+          <mxGeometry x="930" y="436" width="310" height="84" as="geometry"/>
         </mxCell>
       </root>
     </mxGraphModel>
