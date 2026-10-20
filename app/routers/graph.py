@@ -4,11 +4,13 @@ from fastapi import APIRouter, Depends, Query
 
 from app.config import Settings
 from app.dependencies import get_app_settings, get_repository
+from app.models.analytics import InfluentialResponse
 from app.models.catalog import StatsResponse
 from app.models.lineage import ConnectionResponse
 from app.models.organization import FootprintResponse
 from app.models.recommend import RecommendRequest, RecommendResponse
 from app.repositories.graph_repository import GraphRepository
+from app.services.analytics import AnalyticsService
 from app.services.catalog import CatalogService
 from app.services.lineage import LineageService
 from app.services.organization import OrganizationService
@@ -59,3 +61,13 @@ def organization_footprint(
 ) -> FootprintResponse:
     """Own models, derived models and the top builders."""
     return OrganizationService(repo, settings).footprint(org_id, depth, limit)
+
+
+@router.get("/graph/influential", response_model=InfluentialResponse, summary="Most influential base models")
+def influential_models(
+    task: str | None = Query(default=None, examples=["text-generation"]),
+    limit: int = Query(default=10, ge=1, le=50),
+    repo: GraphRepository = Depends(get_repository),
+) -> InfluentialResponse:
+    """PageRank on lineage edges: the models the ecosystem builds on the most. Needs `make gds`."""
+    return AnalyticsService(repo).influential(task, limit)

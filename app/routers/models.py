@@ -10,10 +10,12 @@ from fastapi import APIRouter, Depends, Query
 from app.config import Settings
 from app.dependencies import get_app_settings, get_repository
 from app.domain import Relation
+from app.models.analytics import FamilyResponse, SimilarResponse
 from app.models.catalog import ModelDetail, SearchResponse
 from app.models.license import LicenseCheckResponse
 from app.models.lineage import DescendantPage, LineageResponse
 from app.repositories.graph_repository import GraphRepository
+from app.services.analytics import AnalyticsService
 from app.services.catalog import CatalogService
 from app.services.license import LicenseService
 from app.services.lineage import LineageService
@@ -72,6 +74,26 @@ def license_check(
 ) -> LicenseCheckResponse:
     """Walks every ancestor's license. Informational, not legal advice."""
     return LicenseService(repo, settings).check(model_id, depth)
+
+
+@router.get("/{model_id:path}/similar", response_model=SimilarResponse, summary="Models trained on the same data")
+def similar_models(
+    model_id: str,
+    limit: int = Query(default=10, ge=1, le=50),
+    repo: GraphRepository = Depends(get_repository),
+) -> SimilarResponse:
+    """Node Similarity (Jaccard) on declared datasets and papers. Needs `make gds`."""
+    return AnalyticsService(repo).similar(model_id, limit)
+
+
+@router.get("/{model_id:path}/family", response_model=FamilyResponse, summary="Family, community and rank")
+def model_family(
+    model_id: str,
+    limit: int = Query(default=10, ge=1, le=50, description="How many community members to list"),
+    repo: GraphRepository = Depends(get_repository),
+) -> FamilyResponse:
+    """WCC family, Louvain community and PageRank rank inside the family. Needs `make gds`."""
+    return AnalyticsService(repo).family(model_id, limit)
 
 
 @router.get("/{model_id:path}", response_model=ModelDetail, summary="Model page")

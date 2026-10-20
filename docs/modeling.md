@@ -64,7 +64,15 @@ or gated). We keep those parents as `:Model:Unlisted` nodes rather than a separa
 would mean walking the whole family tree each time (a popular base can have thousands of descendants).
 The cost is that they are only as fresh as the last `make seed`, which is fine for a monthly dump.
 
-## 6. Where each fact comes from
+## 6. Results of graph algorithms
+
+`make gds` writes `pagerank`, `family_id`, `community` and `embedding` on Model nodes, and
+`SIMILAR_TO {score}` relationships between models. We keep them as properties (with range indexes on
+the first three) and not as `Family` / `Community` nodes: they are recomputed after every load, they are
+only filtered or sorted on, and a new node type would add nothing to traverse. `SIMILAR_TO` is the
+exception because "similar models" is something we do traverse.
+
+## 7. Where each fact comes from
 
 - every relationship has a `source` property: `card_metadata` (model cards) or `dataset_card`;
 - `Dataset.listed = false` marks datasets cited by models but with no public card (their license is unknown);
@@ -72,7 +80,7 @@ The cost is that they are only as fresh as the last `make seed`, which is fine f
   applied to verified facts, like the license verdict). Predictions from the ML and agent steps will be
   stored on separate relationship types with a score, never mixed with declared edges.
 
-## 7. Alternatives we rejected
+## 8. Alternatives we rejected
 
 | Alternative | Why we dropped it |
 | --- | --- |
@@ -83,12 +91,12 @@ The cost is that they are only as fresh as the last `make seed`, which is fine f
 | Store the tag list as-is | not indexable, mixes unrelated concepts (section 2) |
 | Recompute lineage metrics in Cypher on each request | full traversal per page view (section 5) |
 
-## 8. Known limits
+## 9. Known limits
 
 - Licenses are **self-declared** by uploaders and can be wrong; the license check is informational.
 - Parameter counts are guessed from the model name (`params_estimated = true`).
-- Not every cited dataset id matches a dataset card (some datasets were renamed, e.g. `squad` became
-  `rajpurkar/squad`, others are private); the exact coverage is in `reports/etl_report.md`
-  (`dataset card coverage pct`).
+- Only 60.7% of the cited dataset ids (9,400 of 15,495) match a dataset card: some datasets were
+  renamed (e.g. `squad` became `rajpurkar/squad`), others are private or deleted. The other 39.3% stay
+  `Dataset {listed: false}` with an unknown license (`reports/etl_report.md`).
 - Many cards declare no parent at all (e.g. `mistralai/Mistral-7B-Instruct-v0.2` does not cite
   `Mistral-7B-v0.2`): that is the gap the link-prediction step will try to fill, as hypotheses.

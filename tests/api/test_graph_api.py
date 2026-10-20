@@ -207,6 +207,47 @@ def test_admin_is_disabled_with_the_placeholder_key():
     assert "disabled" in response.json()["detail"]
 
 
+def test_influential_models(api, repo):
+    body = api.get("/graph/influential", params={"limit": 1}).json()
+    assert body["evidence"] == "DERIVED"
+    assert body["results"][0]["model"]["id"] == "acme/base"
+    assert body["results"][0]["pagerank"] == 2.5123
+    assert repo.calls[-1] == ("influential", None, 1)
+
+
+def test_similar_models(api):
+    body = api.get("/models/acme/chat/similar").json()
+    assert body["results"][0]["model"]["id"] == "bob/chat-GGUF"
+    assert body["results"][0]["score"] == 0.667
+    assert body["note"] is None
+
+
+def test_model_without_similar_gets_a_note(api):
+    body = api.get("/models/carl/lora/similar").json()
+    assert body["results"] == []
+    assert "fewer than 2" in body["note"]
+
+
+def test_model_family(api):
+    body = api.get("/models/acme/chat/family", params={"limit": 1}).json()
+    assert body["rank_in_family"] == 2
+    assert body["community_size"] == 2
+    assert [m["id"] for m in body["top_members"]] == ["acme/base"]
+
+
+def test_gds_endpoints_explain_when_gds_was_not_run(api, repo):
+    repo.gds = False
+    for path in ("/graph/influential", "/models/acme/chat/similar", "/models/acme/chat/family"):
+        response = api.get(path)
+        assert response.status_code == 503
+        assert "make gds" in response.json()["detail"]
+
+
+def test_gds_endpoints_404_on_unknown_model(api):
+    assert api.get("/models/nobody/nothing/similar").status_code == 404
+    assert api.get("/models/nobody/nothing/family").status_code == 404
+
+
 def test_openapi_lists_every_endpoint(api):
     paths = set(api.get("/openapi.json").json()["paths"])
     assert {
@@ -222,4 +263,7 @@ def test_openapi_lists_every_endpoint(api):
         "/organizations/{org_id}/footprint",
         "/datasets/{dataset_id}",
         "/admin/license-rules/reload",
+        "/graph/influential",
+        "/models/{model_id}/similar",
+        "/models/{model_id}/family",
     } <= paths

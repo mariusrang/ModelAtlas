@@ -66,6 +66,22 @@ class GraphRepository:
         """Own models + who builds on them."""
         return self._one("organization_footprint", {"id": org_id, "limit": limit}, depth)
 
+    def influential(self, task: str | None, limit: int) -> list[dict]:
+        """Top models by PageRank (written by `make gds`)."""
+        return self._all("influential", {"task": task, "limit": limit})
+
+    def similar_models(self, model_id: str, limit: int) -> dict | None:
+        """Neighbours through SIMILAR_TO edges (Node Similarity)."""
+        return self._one("similar_models", {"id": model_id, "limit": limit})
+
+    def model_family(self, model_id: str, limit: int) -> dict | None:
+        """WCC family, Louvain community and PageRank rank of a model."""
+        return self._one("model_family", {"id": model_id, "limit": limit})
+
+    def gds_ready(self) -> bool:
+        """True once `make gds` has written its results."""
+        return bool(self.client.read("MATCH (m:Model) WHERE m.pagerank IS NOT NULL RETURN 1 AS found LIMIT 1"))
+
     def model_exists(self, model_id: str) -> bool:
         """Cheap existence check (unique-constraint seek)."""
         return bool(self.client.read("MATCH (m:Model {id: $id}) RETURN 1 AS found", {"id": model_id}))

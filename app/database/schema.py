@@ -33,6 +33,11 @@ INDEXES = [
     "CREATE INDEX model_descendants IF NOT EXISTS FOR (n:Model) ON (n.descendant_count)",
     # license-check groups licenses by family
     "CREATE INDEX license_family IF NOT EXISTS FOR (n:License) ON (n.family)",
+    # written by the GDS step (scripts/graph_algorithms.py): /graph/influential sorts on
+    # pagerank, /models/{id}/family counts the members of a family or community
+    "CREATE INDEX model_pagerank IF NOT EXISTS FOR (n:Model) ON (n.pagerank)",
+    "CREATE INDEX model_family IF NOT EXISTS FOR (n:Model) ON (n.family_id)",
+    "CREATE INDEX model_community IF NOT EXISTS FOR (n:Model) ON (n.community)",
     # search bar + the agent's entity resolver ("mistral 7b instruct" -> real ids)
     "CREATE FULLTEXT INDEX model_search IF NOT EXISTS FOR (n:Model) ON EACH [n.id, n.author]",
 ]
