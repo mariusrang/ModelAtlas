@@ -20,6 +20,14 @@ We could store `license = "llama3.1"` as a property on every model. We made it a
   When a model has none, we judge it on the closest licensed ancestor (`inherited_from` in the answer). If nobody
   on the path declares one, the answer is `needs_review`.
 
+## Training data
+
+The check also follows `TRAINED_ON` from the model and its ancestors to each dataset's `HAS_LICENSE` links.
+If any of these datasets has a non-commercial or conditional license, the verdict becomes at least `needs_review`.
+This training data rule alone does not make the verdict `not_allowed`.
+The legal effect of a training dataset's license on a model is still unclear, so a person must review it.
+If the model's own license or an ancestor's license already gives `not_allowed`, that stricter verdict stays.
+
 ## The families
 
 | family | meaning | example |
