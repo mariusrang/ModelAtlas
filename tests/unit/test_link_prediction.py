@@ -108,8 +108,15 @@ def test_threshold_keeps_the_target_precision():
     assert coverage == pytest.approx(0.5)
 
 
-def test_threshold_defaults_to_one_half_when_nothing_is_precise_enough():
-    assert lp.choose_threshold([(0.9, False)] * 30) == 0.5
+def test_no_threshold_when_nothing_is_precise_enough():
+    # Lucas's case from the review of #12: 30 confident but wrong guesses
+    predictions = [(0.9, False)] * 30
+    assert lp.choose_threshold(predictions) is None
+    assert lp.precision_coverage(predictions, None) == (None, 0.0)
+
+
+def test_threshold_never_goes_below_one_half():
+    assert lp.choose_threshold([(0.4, True)] * 30) is None
 
 
 # ---------------------------------------------------------------- whole run
@@ -142,7 +149,7 @@ def synthetic_graph(n_bases: int = 60):
         word = f"model{i}"
         add(f"org{i}/{word}-7b", i, 50000, child_count=3)
         add(f"org{i}/{word}-13b", i + 1, 20000, params=13.0)  # sibling: similar name, not the parent
-        for j, suffix in enumerate(["gguf", "awq", f"chat-v{i}"]):
+        for j, suffix in enumerate(["gguf", "awq", "chat"]):
             child = f"user{j}/{word}-7b-{suffix}"
             add(child, 100 + i * 3 + j, 500)
             edges.append({"child": child, "parent": f"org{i}/{word}-7b", "parent_unlisted": False})
@@ -170,7 +177,13 @@ def test_run_learns_better_than_chance_and_writes_hypotheses():
 
     by_name = {e.name: e for e in info["test"]}
     chosen = info["chosen"]["model (best validation MRR)"]
-    assert set(by_name) == {"name baseline", "logistic_regression", "gradient_boosting", f"{chosen} + name rule"}
+    assert set(by_name) == {
+        "name baseline",
+        "logistic_regression",
+        "gradient_boosting",
+        "gradient_boosting without popularity",
+        f"{chosen} + name rule",
+    }
     assert info["data"]["candidate recall (test)"] == 1.0
     assert by_name[chosen].hits_at_1 >= 0.8
 
@@ -208,3 +221,41 @@ def test_orphans_need_a_date_downloads_and_few_children():
     ids = ["a/x", "b/y", "c/z", "d/w", "e/v"]
     table = _table(ids, downloads=[500, 500, 50, 500, 500], created=[1.0, 2.0, 3.0, None, 5.0])
     assert lp.orphans(table, has_parent={1}, child_counts=[0, 0, 0, 0, 12]) == [0]
+
+
+def test_older_parent_is_not_pushed_out_by_newer_popular_models():
+    # Lucas's repro: popular models created AFTER the child filled the capped token list
+    ids = ["p/alpha-beta", "c/alpha-beta-chat"] + [f"f{i}/alpha-beta-x{i}" for i in range(5)]
+    created = [0.0, 10.0] + [100.0 + i for i in range(5)]
+    names = NameIndex(ids, [1, 1] + [1000] * 5, max_posting=3)
+    allowed = lambda row: created[row] <= created[1]  # pylint: disable=unnecessary-lambda-assignment
+    assert names.candidates(1, allowed) == [0]
+
+
+def test_without_features_drops_the_popularity_columns():
+    class Recorder:
+        def fit(self, features, labels):  # pylint: disable=unused-argument
+            self.width = features.shape[1]  # pylint: disable=attribute-defined-outside-init
+
+        def predict_proba(self, features):
+            return np.zeros((len(features), 2))
+
+    model = lp.WithoutFeatures(Recorder(), lp.POPULARITY)
+    model.fit(np.zeros((4, len(FEATURES))), np.array([0, 1, 0, 1]))
+    assert model.model.width == len(FEATURES) - 2
+    assert model.predict_proba(np.zeros((3, len(FEATURES)))).shape == (3, 2)
+
+
+def test_one_edge_per_orphan_and_nothing_written_without_threshold(monkeypatch):
+    client = FakeClient(*synthetic_graph())
+    lp.run(client, lp.Settings(candidates=20, max_train=500, max_test=200))
+    written = [row for cypher, params in client.writes if cypher == lp.WRITE_QUERY for row in params["rows"]]
+    assert {row["rank"] for row in written} == {1}
+    assert len({row["child"] for row in written}) == len(written)
+
+    monkeypatch.setattr(lp, "choose_threshold", lambda predictions: None)
+    client = FakeClient(*synthetic_graph())
+    info = lp.run(client, lp.Settings(candidates=20, max_train=500, max_test=200))
+    assert [cypher for cypher, _ in client.writes] == [lp.CLEAR_QUERY]  # old guesses removed, nothing new
+    assert "nothing written" in info["chosen"]["threshold (top-1 precision >= 0.8 on validation)"]
+    assert "nothing written" in lp.render_report(info)
