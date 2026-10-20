@@ -51,8 +51,9 @@ def test_every_algorithm_projects_runs_and_drops():
     # leftovers from an earlier run are dropped first, old SIMILAR_TO edges removed
     assert all("gds.graph.drop" in q for q in queries[: len(gds.PROJECTIONS)])
     assert "DELETE r" in queries[len(gds.PROJECTIONS)]
+    assert "REMOVE n.embedding" in queries[len(gds.PROJECTIONS) + 1]
     # each algorithm: project -> run -> drop, so only one projection is in memory at a time
-    tail = queries[len(gds.PROJECTIONS) + 1 :]
+    tail = queries[len(gds.PROJECTIONS) + 2 :]
     for i in range(0, len(tail), 3):
         assert "gds.graph.project" in tail[i]
         assert "gds." in tail[i + 1] and ".write($graph" in tail[i + 1]
@@ -106,3 +107,10 @@ def test_main_writes_report_and_fails_when_results_are_missing(tmp_path, monkeyp
     monkeypatch.setattr(gds, "build_client", lambda uri: GdsFake(missing=3))
     assert gds.main([]) == 1
     assert (tmp_path / "gds_report.md").exists()
+
+
+def test_embeddings_are_written_on_models_only():
+    for algo in gds.ALGORITHMS:
+        if algo.name.startswith("FastRP"):
+            assert "fastRP.mutate" in algo.query
+            assert "nodeProperties.write($graph" in algo.query and "['Model']" in algo.query
