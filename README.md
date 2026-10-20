@@ -39,7 +39,8 @@ our rules applied to verified facts) or, for the ML and agent steps, `HYPOTHESIS
 | GDS: PageRank, WCC, Louvain, Node Similarity, FastRP | done |
 | Parent-model prediction (link prediction) | done |
 | LangGraph agent with NL-to-Cypher + guardrails | done |
-| Streamlit UI, demo notebook | skeleton / planned |
+| Web app (Streamlit, 6 pages) | done |
+| Demo notebook | done |
 
 ---
 
@@ -332,6 +333,25 @@ handled (3 refused before any LLM call, the off-topic one answered without calli
 valid at the first try, no hallucinated model id, mean confidence 0.93, about 1 min per question.
 Two problems found by the first run and fixed: Qwen answered an English question in Chinese (the answer
 language is now set explicitly), and an off-topic question came back as "no answer" instead of "out of scope".
+
+---
+
+## Web app
+
+Open <http://localhost> once `make docker-run` is up (Nginx serves the app on `/` and the API on `/api`).
+The app only talks to the API, never to Neo4j, and shows the evidence label of every fact.
+
+| Page | What it shows | Built on |
+| --- | --- | --- |
+| **Overview** | Graph size, mix of lineage relationships, the models the ecosystem relies on (PageRank) | `/stats`, `/graph/influential` |
+| **Model explorer** | Card facts, family tree drawn up to the foundation model (with an "incomplete lineage" warning when the depth cuts it), derived models with keyset pagination, GDS analytics, the predicted parent with its score | 7 endpoints |
+| **Compare two models** | Closest common ancestor, shortest lineage path, shared training data | `/connection` |
+| **License check** | The verdict, a family tree coloured by each ancestor's license status, conflicts, training data licenses | `/license-check` |
+| **Model finder** | A client brief (task, size, language, commercial use) and the shortlist with the reasons | `/recommend` |
+| **Ask Atlas** | Chat with the agent: answer, computed confidence and its reasons, cited facts with their labels, a diagram of the tool calls, every generated Cypher query (rejected ones too) | `/agent/ask` |
+
+Pages link to each other (`/model?id=org/name`), so any model in a table opens its own page.
+All pages are tested with Streamlit's `AppTest` on a fake API (`tests/unit/test_ui_pages.py`).
 
 ---
 

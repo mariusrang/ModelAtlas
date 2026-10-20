@@ -30,11 +30,11 @@ from app.repositories.graph_repository import GraphRepository
 
 MAX_ROUNDS = 4  # planning rounds (each can call up to MAX_CALLS_PER_ROUND tools)
 MAX_CALLS_PER_ROUND = 3
-_FRENCH = re.compile(
+_FRENCH_WORDS = (
     r"\b(le|la|les|des|du|une?|est|sont|quel(le)?s?|quels|peux|puis|pour|avec|dans|mod[eè]les?|combien|"
-    r"comment|pourquoi|licence|utiliser|je|tu|nous|vous)\b",
-    re.IGNORECASE,
+    r"comment|pourquoi|licence|utiliser|je|tu|nous|vous)\b"
 )
+_FRENCH = re.compile(_FRENCH_WORDS, re.IGNORECASE)
 _LEAKED_FIELDS = re.compile(r"[,;]?\s*\(?\b(fact_ids|in_scope)\b\s*[=:].*$", re.IGNORECASE | re.DOTALL)
 OUT_OF_SCOPE = {
     "English": "I can only answer questions about AI models, their lineage, licenses and datasets.",

@@ -1,36 +1,55 @@
-"""ModelAtlas Streamlit app, home page.
+"""ModelAtlas Streamlit app: navigation, sidebar and shared style.
 
 Run with `make ui` (local) or through docker compose (served by Nginx on /).
-Feature pages (Explorer, License checker, Model finder, Ask Atlas) are added
-in `ui/pages/` as the API endpoints land.
+Every page talks to the API only (ui/api_client.py), never to Neo4j.
 """
+
+from pathlib import Path
 
 import streamlit as st
 
 from ui.api_client import ApiClient
+from ui.components import inject_css
 
-st.set_page_config(page_title="ModelAtlas", page_icon=":material/explore:", layout="wide")
+PAGES = Path(__file__).parent / "views"  # not "pages": Streamlit would build its own menu from it
+REPO_URL = "https://github.com/mariusrang/ModelAtlas"
 
-st.title("ModelAtlas")
-st.caption("A knowledge graph of the open AI model ecosystem, with an agent that shows its sources.")
 
-client = ApiClient()
-health = client.health()
+def sidebar_status() -> None:
+    """API and Neo4j status, plus useful links."""
+    health = ApiClient().health()
+    with st.sidebar:
+        if health is None:
+            st.error("API not reachable", icon=":material/cloud_off:")
+        else:
+            deps = " · ".join(f"{d['name']} {'🟢' if d['healthy'] else '🔴'}" for d in health["dependencies"])
+            st.caption(f"API {health['version']} 🟢 · {deps}")
+        st.caption(f"[API docs (Swagger)](/api/docs) · [GitHub]({REPO_URL})")
 
-if health is None:
-    st.error("The API is not reachable. Is `docker compose` running?")
-else:
-    cols = st.columns(len(health["dependencies"]) + 1)
-    cols[0].metric("API", health["status"].upper(), help=f"version {health['version']}")
-    for col, dep in zip(cols[1:], health["dependencies"]):
-        col.metric(dep["name"], "up" if dep["healthy"] else "down")
 
-st.markdown("""
-**Evidence labels used everywhere in this app**
+def main() -> None:
+    """Build the navigation and run the selected page."""
+    st.set_page_config(page_title="ModelAtlas", page_icon=":material/hub:", layout="wide")
+    inject_css()
+    pages = {
+        "Explore": [
+            st.Page(PAGES / "overview.py", title="Overview", icon=":material/hub:", url_path="overview", default=True),
+            st.Page(PAGES / "model.py", title="Model explorer", icon=":material/account_tree:", url_path="model"),
+            st.Page(
+                PAGES / "compare.py", title="Compare two models", icon=":material/compare_arrows:", url_path="compare"
+            ),
+        ],
+        "Decide": [
+            st.Page(PAGES / "license.py", title="License check", icon=":material/gavel:", url_path="license"),
+            st.Page(PAGES / "finder.py", title="Model finder", icon=":material/manage_search:", url_path="finder"),
+        ],
+        "Ask": [
+            st.Page(PAGES / "agent.py", title="Ask Atlas (agent)", icon=":material/smart_toy:", url_path="ask"),
+        ],
+    }
+    page = st.navigation(pages)
+    sidebar_status()
+    page.run()
 
-| Label | Meaning |
-| --- | --- |
-| `VERIFIED` | Declared in a Hugging Face model card or registry |
-| `DERIVED` | Computed by one of our rules from verified data |
-| `HYPOTHESIS` | Guessed by our ML model or the LLM, always shown with a confidence |
-""")
+
+main()

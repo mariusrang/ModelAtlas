@@ -235,7 +235,7 @@ def test_older_parent_is_not_pushed_out_by_newer_popular_models():
 def test_without_features_drops_the_popularity_columns():
     class Recorder:
         def fit(self, features, labels):  # pylint: disable=unused-argument
-            self.width = features.shape[1]  # pylint: disable=attribute-defined-outside-init
+            self.width = features.shape[1]
 
         def predict_proba(self, features):
             return np.zeros((len(features), 2))

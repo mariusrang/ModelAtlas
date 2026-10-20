@@ -24,7 +24,7 @@ def test_every_tool_has_a_spec_and_a_handler(tools):
     assert len(TOOL_SPECS) == len(TOOL_NAMES) == 9
     for spec in TOOL_SPECS:
         assert spec["function"]["parameters"]["type"] == "object"
-    assert set(TOOL_NAMES) == set(tools._handlers)  # pylint: disable=protected-access
+    assert set(TOOL_NAMES) == set(tools._handlers)
 
 
 @pytest.mark.parametrize(
