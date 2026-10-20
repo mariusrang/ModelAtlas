@@ -14,13 +14,13 @@ what we built. Every number below comes from our reports: [`data_profile.md`](..
   schema, which defeats the purpose.
 - **Prompt** (identical in both sessions, pasted as is):
 
-  ```text
+```text
   Design a Neo4j graph schema for this project: "A knowledge graph of the open AI model ecosystem on
   Hugging Face: models, their base models (fine-tunes, adapters, quantized versions, merges), licenses,
   training datasets, papers, benchmarks and organizations. Users want to trace where a model comes from,
   check if it can be used commercially, and get model recommendations."
   Give node labels, relationship types, key properties and constraints.
-  ```
+```
 
 - The raw answers are kept **unchanged** in [`generic_schema_1.md`](generic_schema_1.md) and
   [`generic_schema_2.md`](generic_schema_2.md). We call them G1 and G2.
@@ -36,13 +36,20 @@ at the real data.
 | Lineage | One type with a property: G1 `DERIVED_FROM {relation}`, G2 `BASED_ON {kind}` | 4 types: `FINETUNED_FROM`, `ADAPTER_OF`, `QUANTIZED_FROM`, `MERGED_FROM` (child → parent) | The kinds mean different things (a quantized copy *is* its parent's weights, a fine-tune is a new model) and have very different sizes in the graph: 47,560 / 36,907 / 10,614 / 6,700 edges. With types, the filter is in the pattern (`-[:QUANTIZED_FROM*]->`), so Neo4j never expands the other edges; with a property it expands all of them and filters afterwards. |
 | Merges with several parents | Several edges allowed. G1 adds: "a merge is a model with two or more outgoing edges" | A merge is a model with `MERGED_FROM` edges | 6,574 models of the raw dump have several parents, and not all are merges: a GGUF can declare a `finetune` parent and a `quantized` parent (example in section 3). G1's rule counts it as a merge. |
 | Parents missing from the dump | G1 `isStub` property, G2 `stub: true` property | Extra label `:Unlisted` on the `Model` node | 22% of declared lineage edges (88,691 of 398,422) point to a model that is not in the dump; we keep them as 6,138 `:Unlisted` nodes. A label is checked in the pattern (`WHERE NOT m:Unlisted` in the recommender) and the license check says `incomplete_lineage` when it meets one. |
-| License | Node with rules. G2 keys it on `spdx_id` or `key` | Node keyed on the Hub id (`apache-2.0`, `llama3.1`); rules in a reviewed file, [`config/licenses.toml`](../../config/licenses.toml), applied at load | 78 `License` nodes shared by 115,244 `HAS_LICENSE` edges. Hub ids such as `llama3.1` or `openrail++` have no SPDX id, so G2's key would be empty for them. A missing rule gives `needs_review`, never `ok`. |
+| License | Node with rules. G2 keys it on `spdx_id` or `key` | Node keyed on the Hub id (`apache-2.0`, `llama3.1`); rules in a reviewed file, [`config/licenses.toml`](../../config/licenses.toml), applied at load | 80 `License` nodes shared by 122,463 `HAS_LICENSE` edges (115,244 from models, 7,219 from datasets). Hub ids such as `llama3.1` or `openrail++` have no SPDX id, so G2's key would be empty for them. A missing rule gives `needs_review`, never `ok`. |
 | Tags | Task, Language, Architecture as nodes; G1 and G2 also suggest a free `Tag` node | Typed nodes only for a known list (70 `Architecture` nodes from [`scope.toml`](../../config/scope.toml)); weight formats stay a list property `formats` | Raw tags are mostly noise for our questions (`conversational` on 212,739 models, `gensyn` on 105,309). A `Tag` node would be a huge hub with no meaning. |
 | Task | Node + property (G1 `FOR_TASK` + `pipelineTag`, G2 `SOLVES` + `pipeline_tag`) | Node (`PERFORMS`, 102,893 edges, 56 tasks) + indexed property `Model.task` | Same idea as the generic answers. The property is the first filter of the recommender (index `model_task`); the node is for browsing ("all tasks") and the agent. |
 | Noise in the data | Not mentioned | Dropped by the ETL before loading | 105,310 spam models (`blockassist` / swarm checkpoints) dropped; 6,910 links to the template paper 1910.09700 dropped; 529 fake dataset links (`custom`, local files) dropped; 1,149 self-loops dropped and 1 cycle edge broken. |
 | Precomputed metrics | G1 caches `effectiveCommercialUse`, G2 caches `commercial_status` and `root_model_ids` | `lineage_depth`, `child_count`, `descendant_count`, `root_ids` on every model | We cache structure, which only changes when the data is reloaded, and never the license verdict, which changes each time a rule is fixed. Chains go up to 33 levels deep, but 99.6% are ≤ 5, so depth bounds are cheap. |
 | Predicted parents | Same edge with `source: inferred` (G1 `inferred_from_name`) | Planned: predictions stored apart from the real edges, as hypotheses with a confidence | A guessed edge in the same relationship type would be followed by every lineage and license query. Keeping it separate means a guess can never be shown as a fact. |
 | Trust labels | Only on benchmark scores (G1 `verified`, G2 `verified`) | Every API answer says `VERIFIED`, `DERIVED` or `HYPOTHESIS`; lineage edges have `declared` | The 60 raw edges with no kind are loaded as `FINETUNED_FROM` with `declared = false`, so "we guessed the kind" is never lost. |
+
+**Update: dataset licenses (second source).** Datasets now also come from a second source, the Hugging Face
+dataset cards. A dataset points to the same `License` nodes as the models with `HAS_LICENSE`, so one rule in
+`config/licenses.toml` covers both. 61.0% of the 15,495 datasets our models cite have a card, and 58 of them
+declare several licenses, which we all keep. The license check now also looks at the training data of the model
+and of its ancestors. Both generic schemas proposed licenses on datasets (section 4), so here we followed them; the
+difference is that our version is backed by real card data, with its coverage measured in `reports/etl_report.md`.
 
 ## 3. Where the generic schema gives a WRONG answer
 
@@ -83,8 +90,7 @@ RETURN p.id AS paper, count(*) AS models ORDER BY models DESC LIMIT 3
 ```
 
 Why it is wrong: neither answer filters anything, so on the dump the top answer is arXiv 1910.09700 with 126,239
-models. It is "Quantifying the Carbon Emissions
-of Machine Learning", cited only because the link is in Hugging Face's default model-card template. The second
+models. It is "Quantifying the Carbon Emissions of Machine Learning", cited only because the link is in Hugging Face's default model-card template. The second
 one, 2504.07091 (98,583 models), has almost the same count as the 98,591 `blockassist` spam models. Our ETL drops
 template citations and spam before loading, so the same question on our graph gives real papers:
 
@@ -117,11 +123,11 @@ RETURN count(m) AS merges
 - **Benchmarks.** Both have a `Benchmark` node (G1 with an `EvalResult` node, G2 with scores on an `EVALUATED_ON`
   edge). We don't have benchmarks yet; we plan to add a `Benchmark` node, and G2's "score on the edge, with
   `source` and `verified`" is the simpler option for us.
-- **License of the training data.** Both put `LICENSED_UNDER` on `Dataset` too. It is a real gap in our license
-  check: a model trained on a non-commercial dataset may inherit the restriction. Our second source (dataset cards)
-  has this field, so this is a natural next step.
-- **Similarity for recommendations.** Both suggest `SIMILAR_TO` edges or a vector index on the model card. Our
-  recommender only filters and ranks by downloads today.
+- **License of the training data.** Both put `LICENSED_UNDER` on `Dataset` too. They were right: it was a gap in
+  our license check (a model trained on a non-commercial dataset may inherit the restriction), and we have now
+  added it from the dataset cards (see the update at the end of section 2).
+- **Similarity.** Both suggest `SIMILAR_TO` edges. We now compute them with GDS Node Similarity on the datasets and
+  papers two models share, and store them as `SIMILAR_TO {score}` labelled DERIVED, never as declared facts.
 - **Merge details.** G2 puts `method` and `weight` on merge edges. Good idea, but the Hub tags we load only say
   `base_model:merge:<id>`, so we would have to read every card text to fill them.
 - **Things we chose not to do:** G1's `Author` and `Library` nodes and G2's `ModelFamily` node do not serve any of
