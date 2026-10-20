@@ -12,10 +12,11 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 
 from app import __version__
+from app.agent.llm import ChatModel
 from app.config import Settings, get_settings
 from app.database.neo4j_client import Neo4jClient
 from app.errors import register_error_handlers
-from app.routers import admin, datasets, graph, health, models
+from app.routers import admin, agent, datasets, graph, health, models
 
 logger = logging.getLogger("modelatlas")
 
@@ -29,11 +30,13 @@ or `HYPOTHESIS` (ML or LLM inference, always with a confidence score).
 """
 
 
-def create_app(settings: Settings | None = None, db: Neo4jClient | None = None) -> FastAPI:
+def create_app(
+    settings: Settings | None = None, db: Neo4jClient | None = None, llm: ChatModel | None = None
+) -> FastAPI:
     """Build the FastAPI app.
 
-    `settings` and `db` can be injected, which is what the tests do to run the
-    API without a real Neo4j.
+    `settings`, `db` and `llm` can be injected, which is what the tests do to run
+    the API without a real Neo4j or Ollama.
     """
     settings = settings or get_settings()
     logging.basicConfig(level=settings.log_level, format="%(asctime)s %(levelname)s %(name)s %(message)s")
@@ -64,12 +67,14 @@ def create_app(settings: Settings | None = None, db: Neo4jClient | None = None) 
         return response
 
     application.state.settings = settings
+    application.state.llm = llm
     register_error_handlers(application)
     application.include_router(health.router)
     application.include_router(models.router)
     application.include_router(graph.router)
     application.include_router(datasets.router)
     application.include_router(admin.router)
+    application.include_router(agent.router)
     return application
 
 

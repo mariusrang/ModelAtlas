@@ -38,7 +38,7 @@ our rules applied to verified facts) or, for the ML and agent steps, `HYPOTHESIS
 | Second source: dataset cards (training-data licenses) | done |
 | GDS: PageRank, WCC, Louvain, Node Similarity, FastRP | done |
 | Parent-model prediction (link prediction) | done |
-| LangGraph agent with NL-to-Cypher + guardrails | planned |
+| LangGraph agent with NL-to-Cypher + guardrails | done |
 | Streamlit UI, demo notebook | skeleton / planned |
 
 ---
@@ -168,6 +168,7 @@ applied to verified facts) or `HYPOTHESIS` (guess of our ML model or of the LLM,
 | `GET /models/{id}/similar` | Models trained on the same data / citing the same papers (Node Similarity) | DERIVED |
 | `GET /models/{id}/family` | Family (WCC), sub-family (Louvain) and rank in the family (PageRank) | DERIVED |
 | `GET /models/{id}/predicted-parents` | Probable parents of a model whose card declares none (link prediction) | HYPOTHESIS |
+| `POST /agent/ask` | Question in natural language → multi-step agent, cited facts, confidence | facts keep their label, answer = HYPOTHESIS |
 | `POST /admin/license-rules/reload` | Re-apply `config/licenses.toml` without reloading the graph (needs `X-API-Key`) | - |
 
 Model ids keep their slash (`/models/mistralai/Mistral-7B-v0.1/lineage`). Some examples (from cmd):
@@ -293,6 +294,47 @@ Results on the full graph (4,000 test children created after the training period
 
 ---
 
+## Agent (LangGraph + local LLM)
+
+`POST /agent/ask` answers questions like *"Can I use TheBloke/Mistral-7B-Instruct-v0.2-GGUF in a commercial
+product?"* with a **LangGraph** agent running on a local model (Ollama, `qwen2.5:7b-instruct`, no API key).
+Details and diagram: [`docs/agent.md`](docs/agent.md). Evaluation: [`reports/agent_eval.md`](reports/agent_eval.md).
+
+```bat
+curl -X POST "http://localhost/api/agent/ask" -H "Content-Type: application/json" ^
+     -d "{\"question\": \"What is HuggingFaceH4/zephyr-7b-beta based on, and can I sell a product with it?\"}"
+```
+
+- **Multi-step with tools.** The LLM plans, calls up to 3 tools per round (4 rounds max), reads the results and
+  decides what to do next. The 9 tools wrap our own services (`search_models`, `model_details`, `lineage`,
+  `license_check`, `recommend`, `similar_models`, `predicted_parents`, `influential_models`) plus
+  **`text_to_cypher`** for anything else. The LLM never talks to Neo4j directly.
+- **Facts vs AI.** Every tool result becomes numbered facts with their own label (`VERIFIED`, `DERIVED`,
+  `HYPOTHESIS`). The final answer is structured JSON that must **cite fact numbers**; the response returns the
+  facts, the tool calls in order and every generated Cypher query (rejected ones included).
+- **Guardrails, in layers.**
+  1. the question is screened (write orders, prompt injection, secrets) before any LLM call;
+  2. generated Cypher is checked statically: read-only keywords, no procedure `CALL`, **allowlist** of labels,
+     relationship types and properties, bounded variable-length patterns, `LIMIT` added or lowered;
+  3. `EXPLAIN` before running (syntax, unknown functions); errors go back to the LLM, **2 repairs max**;
+  4. execution in a **READ session with a timeout**: the database itself refuses a write;
+  5. the answer is verified: citations must exist, model ids it mentions must be in the graph.
+- **Confidence we can explain**, computed from those checks and not asked to the LLM: it starts at 0.95 and
+  drops for uncited answers, failed tools, LLM-written Cypher, repairs, unknown model ids; an answer relying on a
+  `HYPOTHESIS` fact is capped at 0.6. `confidence_reasons` lists why.
+- **Rate limit**: Nginx allows 10 agent requests per minute per IP (the local LLM is slow on CPU).
+
+`make agent-eval` runs the cases of [`config/agent_eval.toml`](config/agent_eval.toml) (normal questions and
+traps: destructive requests, prompt injection, secrets, off-topic) and writes `reports/agent_eval.md`.
+
+First results with `qwen2.5:7b-instruct` on a laptop CPU (9 cases, temperature 0): **9/9 passed**, the 4 traps
+handled (3 refused before any LLM call, the off-topic one answered without calling a tool), the generated Cypher
+valid at the first try, no hallucinated model id, mean confidence 0.93, about 1 min per question.
+Two problems found by the first run and fixed: Qwen answered an English question in Chinese (the answer
+language is now set explicitly), and an off-topic question came back as "no answer" instead of "out of scope".
+
+---
+
 ## Architecture
 
 Five services run in `docker compose`; only Nginx is published on the network.
@@ -331,6 +373,7 @@ guardrails and evidence labels live. Diagrams of the services, the API layers an
 | `make seed-sample` | Load the small fixture into Neo4j (used by CI) |
 | `make gds` | Run the graph algorithms on the loaded graph -> `reports/gds_report.md` |
 | `make predict` | Predict missing parents (needs `make gds`) -> `reports/link_prediction.md` |
+| `make agent-eval` | Evaluate the agent on normal questions and traps (needs `make ollama-pull`) -> `reports/agent_eval.md` |
 | `make test` | All tests + coverage (integration tests skip if the stack is down) |
 | `make test-unit` | Fast tests only, no Docker needed |
 | `make test-integration` | Tests against the running stack |
@@ -347,7 +390,7 @@ guardrails and evidence labels live. Diagrams of the services, the API layers an
 app/            FastAPI app (routers -> services -> repositories -> Neo4j)
 ui/             Streamlit app
 scripts/        ETL, training, benchmarks, Makefile helpers
-tests/          unit/, api/, health/, integration/ (+ agent/ later)
+tests/          unit/, api/, health/, integration/ (agent: fake LLM in unit tests, real Ollama in integration)
 docker/         Dockerfiles and Nginx config
 config/         versioned config (data sources, license rules, scope)
 docs/           modeling choices, architecture diagrams

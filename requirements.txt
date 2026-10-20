@@ -7,6 +7,8 @@ pydantic-settings==2.16.0
 neo4j==5.28.6
 httpx==0.28.1
 requests==2.34.2
+# agent (LangGraph state machine; the LLM itself is the local Ollama, called over HTTP)
+langgraph==1.2.16
 streamlit==1.65.0
 # data / ETL
 python-dotenv==1.2.4

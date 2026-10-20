@@ -4,6 +4,8 @@ import secrets
 
 from fastapi import Depends, Header, Request
 
+from app.agent.graph import ModelAtlasAgent
+from app.agent.llm import ChatModel, OllamaChat
 from app.config import Settings, get_settings
 from app.database.neo4j_client import Neo4jClient
 from app.errors import UnauthorizedError
@@ -40,3 +42,18 @@ def require_admin_key(
         raise UnauthorizedError("Admin endpoints are disabled until ADMIN_API_KEY is set in .env")
     if not x_api_key or not secrets.compare_digest(x_api_key, expected):
         raise UnauthorizedError("Missing or invalid X-API-Key header")
+
+
+def get_llm(request: Request, settings: Settings = Depends(get_app_settings)) -> ChatModel:
+    """The LLM injected at startup (tests use a scripted fake), else the local Ollama."""
+    return getattr(request.app.state, "llm", None) or OllamaChat(settings)
+
+
+def get_agent(
+    repo: GraphRepository = Depends(get_repository),
+    db: Neo4jClient = Depends(get_db),
+    settings: Settings = Depends(get_app_settings),
+    llm: ChatModel = Depends(get_llm),
+) -> ModelAtlasAgent:
+    """A fresh agent per request (building the LangGraph graph takes about a millisecond)."""
+    return ModelAtlasAgent(repo, db, settings, llm)
