@@ -14,7 +14,11 @@ Each algorithm answers one question of the project:
 - Node Similarity on Model -> Dataset / Paper: which models were trained on the
   same data or cite the same papers? -> (:Model)-[:SIMILAR_TO {score}]->(:Model)
 - FastRP on lineage + data + papers + publishers + architectures: a 64-d vector
-  per model, used as a feature by the link-prediction step -> Model.embedding
+  per model that places a model close to its family -> Model.embedding
+- FastRP again WITHOUT lineage edges: what a model "looks like" from its data,
+  papers, publisher and architecture only. The link-prediction step uses this
+  one, because an embedding built from lineage edges would already contain the
+  parent we are trying to guess (data leakage) -> Model.content_embedding
 
 Results are written back (write mode) so the API reads them with plain, indexed
 Cypher instead of running an algorithm on every request. Everything here is
@@ -35,7 +39,8 @@ from scripts.seed_data import build_client
 
 logger = logging.getLogger("modelatlas.gds")
 
-ALL_TYPES = [*LINEAGE_TYPES, "TRAINED_ON", "CITES", "PUBLISHED_BY", "HAS_ARCHITECTURE"]
+CONTENT_TYPES = ["TRAINED_ON", "CITES", "PUBLISHED_BY", "HAS_ARCHITECTURE"]
+ALL_TYPES = [*LINEAGE_TYPES, *CONTENT_TYPES]
 
 # name -> (node labels, relationship projection)
 PROJECTIONS = {
@@ -49,6 +54,10 @@ PROJECTIONS = {
         ["Model", "Dataset", "Paper", "Organization", "Architecture"],
         {t: {"orientation": "UNDIRECTED"} for t in ALL_TYPES},
     ),
+    "content": (
+        ["Model", "Dataset", "Paper", "Organization", "Architecture"],
+        {t: {"orientation": "UNDIRECTED"} for t in CONTENT_TYPES},
+    ),
 }
 
 PROJECT_QUERY = """
@@ -58,6 +67,11 @@ RETURN nodeCount, relationshipCount, projectMillis
 """
 DROP_QUERY = "CALL gds.graph.drop($name, false) YIELD graphName RETURN graphName"
 CLEAR_SIMILAR_QUERY = "MATCH ()-[r:SIMILAR_TO]->() CALL (r) { DELETE r } IN TRANSACTIONS OF 10000 ROWS"
+# older runs also wrote embeddings on Dataset / Paper / Organization / Architecture nodes
+CLEAR_OTHER_EMBEDDINGS_QUERY = """
+MATCH (n) WHERE NOT n:Model AND (n.embedding IS NOT NULL OR n.content_embedding IS NOT NULL)
+CALL (n) { REMOVE n.embedding, n.content_embedding } IN TRANSACTIONS OF 10000 ROWS
+"""
 
 
 @dataclass(frozen=True)
@@ -73,8 +87,9 @@ ALGORITHMS = [
     Algorithm(
         "PageRank",
         "lineage",
-        # edges go child -> parent, so rank flows up to the models others are built on;
-        # 20 iterations did not converge on the full graph, 50 does
+        # edges go child -> parent, so rank flows up to the models others are built on.
+        # maxIterations is a ceiling: the run stops as soon as it converges (20 iterations on
+        # the current graph, see the report); an earlier load needed more than 20.
         """CALL gds.pageRank.write($graph, {writeProperty: 'pagerank', maxIterations: 50, dampingFactor: 0.85})
         YIELD nodePropertiesWritten, ranIterations, didConverge, computeMillis
         RETURN nodePropertiesWritten, ranIterations, didConverge, computeMillis""",
@@ -108,11 +123,26 @@ ALGORITHMS = [
     Algorithm(
         "FastRP",
         "embedding",
-        """CALL gds.fastRP.write($graph, {
+        # computed on every node of the projection (datasets, papers... carry the signal),
+        # but written back on Model nodes only: nobody reads a Dataset embedding
+        """CALL gds.fastRP.mutate($graph, {
             embeddingDimension: 64, iterationWeights: [0.0, 1.0, 1.0], randomSeed: 42,
-            writeProperty: 'embedding'})
-        YIELD nodePropertiesWritten, computeMillis
-        RETURN nodePropertiesWritten, computeMillis""",
+            mutateProperty: 'embedding'})
+        YIELD computeMillis
+        CALL gds.graph.nodeProperties.write($graph, ['embedding'], ['Model'])
+        YIELD propertiesWritten
+        RETURN propertiesWritten AS nodePropertiesWritten, computeMillis""",
+    ),
+    Algorithm(
+        "FastRP (content)",
+        "content",
+        """CALL gds.fastRP.mutate($graph, {
+            embeddingDimension: 64, iterationWeights: [0.0, 1.0, 1.0], randomSeed: 42,
+            mutateProperty: 'content_embedding'})
+        YIELD computeMillis
+        CALL gds.graph.nodeProperties.write($graph, ['content_embedding'], ['Model'])
+        YIELD propertiesWritten
+        RETURN propertiesWritten AS nodePropertiesWritten, computeMillis""",
     ),
 ]
 
@@ -157,6 +187,15 @@ MATCH (a:Model)-[s:SIMILAR_TO]->(b:Model) WHERE a.id < b.id AND a.family_id <> b
 RETURN a.id AS model_a, b.id AS model_b, round(s.score, 3) AS score
 ORDER BY s.score DESC, a.downloads + b.downloads DESC LIMIT 10
 """
+# How many models Node Similarity can compare: degreeCutoff 2 skips the ones with a
+# single dataset/paper (asked by Ylias in the review of #10).
+SIMILARITY_COVERAGE = """
+MATCH (m:Model)
+WITH COUNT { (m)-[:TRAINED_ON|CITES]->() } AS features
+RETURN sum(CASE WHEN features >= 2 THEN 1 ELSE 0 END) AS compared,
+       sum(CASE WHEN features = 1 THEN 1 ELSE 0 END) AS skipped_only_one,
+       sum(CASE WHEN features = 0 THEN 1 ELSE 0 END) AS no_dataset_or_paper
+"""
 # Sanity check of the embeddings: the nearest neighbours of a well-known base
 # model should be its own family (fine-tunes, quantized copies).
 EMBEDDING_NEIGHBOURS = """
@@ -166,7 +205,9 @@ WITH m, gds.similarity.cosine(anchor.embedding, m.embedding) AS cosine
 RETURN m.id AS model, round(cosine, 3) AS cosine ORDER BY cosine DESC LIMIT 10
 """
 MISSING_RESULTS = """
-MATCH (m:Model) WHERE m.pagerank IS NULL OR m.family_id IS NULL OR m.community IS NULL OR m.embedding IS NULL
+MATCH (m:Model)
+WHERE m.pagerank IS NULL OR m.family_id IS NULL OR m.community IS NULL
+   OR m.embedding IS NULL OR m.content_embedding IS NULL
 RETURN count(m) AS n
 """
 EMBEDDING_ANCHOR = "mistralai/Mistral-7B-v0.1"
@@ -189,6 +230,7 @@ def run_all(client: Neo4jClient) -> list[dict]:
     apply_schema(client)  # makes sure the pagerank / family / community indexes exist
     drop_projections(client)
     client.write(CLEAR_SIMILAR_QUERY)  # re-running must not duplicate SIMILAR_TO edges
+    client.write(CLEAR_OTHER_EMBEDDINGS_QUERY)
     results = []
     for algo in ALGORITHMS:
         start = time.perf_counter()
@@ -217,6 +259,7 @@ def collect_findings(client: Neo4jClient) -> dict[str, list[dict]]:
         "WCC: family sizes": client.read(FAMILY_SIZES),
         "WCC: largest families": client.read(TOP_FAMILIES),
         "Louvain: largest communities": client.read(TOP_COMMUNITIES),
+        "Node Similarity: models compared (degreeCutoff 2)": client.read(SIMILARITY_COVERAGE),
         "Node Similarity: most similar pairs": client.read(TOP_SIMILAR),
         "Node Similarity: most similar pairs from different families": client.read(TOP_SIMILAR_OTHER_FAMILY),
         f"FastRP: nearest neighbours of {EMBEDDING_ANCHOR}": client.read(

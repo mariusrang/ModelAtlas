@@ -78,6 +78,10 @@ class GraphRepository:
         """WCC family, Louvain community and PageRank rank of a model."""
         return self._one("model_family", {"id": model_id, "limit": limit})
 
+    def predicted_parents(self, model_id: str, limit: int) -> dict | None:
+        """PREDICTED_PARENT edges written by `make predict`."""
+        return self._one("predicted_parents", {"id": model_id, "limit": limit})
+
     def gds_ready(self) -> bool:
         """True once `make gds` has written its results."""
         return bool(self.client.read("MATCH (m:Model) WHERE m.pagerank IS NOT NULL RETURN 1 AS found LIMIT 1"))

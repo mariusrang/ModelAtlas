@@ -60,6 +60,8 @@ jobs:
         run: make seed-sample
       - name: Run the graph algorithms (make gds-sample)
         run: make gds-sample
+      - name: Predict missing parents (make predict-sample)
+        run: make predict-sample
       - name: Container health + graph integration tests
         env:
           NEO4J_PASSWORD: ci-password-123

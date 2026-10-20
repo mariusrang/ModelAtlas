@@ -248,6 +248,38 @@ def test_gds_endpoints_404_on_unknown_model(api):
     assert api.get("/models/nobody/nothing/family").status_code == 404
 
 
+def test_predicted_parents_are_hypotheses_with_a_score(api):
+    body = api.get("/models/carl/lora/predicted-parents").json()
+    assert body["evidence"] == "HYPOTHESIS"
+    assert body["model_version"] == "gradient_boosting-2026-10-19"
+    assert [(p["model"]["id"], p["rank"]) for p in body["results"]] == [("acme/chat", 1), ("acme/base", 2)]
+    assert body["results"][0]["score"] == 0.91
+    assert body["note"] is None
+
+
+def test_predicted_parents_limit(api):
+    body = api.get("/models/carl/lora/predicted-parents", params={"limit": 1}).json()
+    assert len(body["results"]) == 1
+    assert api.get("/models/carl/lora/predicted-parents", params={"limit": 4}).status_code == 422
+
+
+def test_predicted_parents_notes(api):
+    declared = api.get("/models/acme/chat/predicted-parents").json()
+    assert declared["declared_parents"] == 1
+    assert "declares its parent" in declared["note"]
+    nothing = api.get("/models/acme/base/predicted-parents").json()
+    assert nothing["results"] == []
+    assert "No prediction" in nothing["note"]
+
+
+def test_predicted_parents_before_make_predict(api, repo):
+    repo.predicted = False
+    response = api.get("/models/carl/lora/predicted-parents")
+    assert response.status_code == 503
+    assert "make predict" in response.json()["detail"]
+    assert api.get("/models/nobody/nothing/predicted-parents").status_code == 404
+
+
 def test_openapi_lists_every_endpoint(api):
     paths = set(api.get("/openapi.json").json()["paths"])
     assert {
@@ -258,6 +290,7 @@ def test_openapi_lists_every_endpoint(api):
         "/models/search",
         "/models/{model_id}",
         "/models/{model_id}/lineage",
+        "/models/{model_id}/predicted-parents",
         "/models/{model_id}/descendants",
         "/models/{model_id}/license-check",
         "/organizations/{org_id}/footprint",

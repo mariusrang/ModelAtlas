@@ -48,6 +48,7 @@ class FakeRepository:
     def __init__(self):
         self.calls = []
         self.gds = True  # False = `make gds` not run yet
+        self.predicted = True  # False = `make predict` not run yet
         self.licenses = {"acme/base": APACHE, "acme/chat": APACHE, "bob/chat-GGUF": None, "carl/lora": NON_COMMERCIAL}
 
     def stats(self):
@@ -260,6 +261,36 @@ class FakeRepository:
             "rank_in_family": 2,
             "community_size": 2,
             "top_members": members[:limit],
+        }
+
+    def predicted_parents(self, model_id, limit):
+        if model_id not in MODELS:
+            return None
+        predictions = []
+        if model_id == "carl/lora":
+            predictions = [
+                {
+                    "model": {**MODELS["acme/chat"], "unlisted": False, "license": "apache-2.0"},
+                    "score": 0.91,
+                    "rank": 1,
+                    "model_version": "gradient_boosting-2026-10-19",
+                    "name_score": 0.8,
+                    "content_cosine": 0.95,
+                },
+                {
+                    "model": {**MODELS["acme/base"], "unlisted": False, "license": "apache-2.0"},
+                    "score": 0.62,
+                    "rank": 2,
+                    "model_version": "gradient_boosting-2026-10-19",
+                    "name_score": 0.4,
+                    "content_cosine": 0.9,
+                },
+            ]
+        return {
+            "id": model_id,
+            "declared_parents": 0 if model_id in ("acme/base", "carl/lora") else 1,
+            "predictions_ready": self.predicted,
+            "predictions": predictions[:limit],
         }
 
     def gds_ready(self):

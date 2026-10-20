@@ -18,7 +18,7 @@ an AI pre-sales / solutions engineer gets from clients:
 - *Can my client use it commercially?* (licenses of the model, of every ancestor and of the training data)
 - *Which French-capable, < 8B, commercially usable model should we start from?*
 - *How are these two models related?* (common ancestor, shortest path)
-- *This GGUF lists no parent: what is it probably based on?* (link prediction, planned)
+- *This GGUF lists no parent: what is it probably based on?* (link prediction)
 
 Each answer of the API says how much you can trust it: `VERIFIED` (read from a card), `DERIVED` (one of
 our rules applied to verified facts) or, for the ML and agent steps, `HYPOTHESIS` with a confidence score.
@@ -37,7 +37,7 @@ our rules applied to verified facts) or, for the ML and agent steps, `HYPOTHESIS
 | Graph queries + API endpoints | done |
 | Second source: dataset cards (training-data licenses) | done |
 | GDS: PageRank, WCC, Louvain, Node Similarity, FastRP | done |
-| Parent-model prediction (link prediction) | next |
+| Parent-model prediction (link prediction) | done |
 | LangGraph agent with NL-to-Cypher + guardrails | planned |
 | Streamlit UI, demo notebook | skeleton / planned |
 
@@ -149,7 +149,7 @@ License rules and their sources: [`docs/licenses.md`](docs/licenses.md).
 
 Interactive docs (Swagger): <http://localhost/api/docs> once the stack is up. Every response says how far
 you can trust it with an `evidence` field: `VERIFIED` (declared in a model card), `DERIVED` (our rule
-applied to verified facts) or `HYPOTHESIS` (ML/LLM guess, later steps).
+applied to verified facts) or `HYPOTHESIS` (guess of our ML model or of the LLM, always with a score).
 
 | Endpoint | What it answers | Evidence |
 | --- | --- | --- |
@@ -167,6 +167,7 @@ applied to verified facts) or `HYPOTHESIS` (ML/LLM guess, later steps).
 | `GET /graph/influential?task=text-generation` | Base models the ecosystem builds on the most (PageRank) | DERIVED |
 | `GET /models/{id}/similar` | Models trained on the same data / citing the same papers (Node Similarity) | DERIVED |
 | `GET /models/{id}/family` | Family (WCC), sub-family (Louvain) and rank in the family (PageRank) | DERIVED |
+| `GET /models/{id}/predicted-parents` | Probable parents of a model whose card declares none (link prediction) | HYPOTHESIS |
 | `POST /admin/license-rules/reload` | Re-apply `config/licenses.toml` without reloading the graph (needs `X-API-Key`) | - |
 
 Model ids keep their slash (`/models/mistralai/Mistral-7B-v0.1/lineage`). Some examples (from cmd):
@@ -198,7 +199,7 @@ Design choices, briefly:
 
 ## Graph algorithms (GDS)
 
-`make gds` runs five Neo4j Graph Data Science algorithms on the loaded graph and writes their results
+`make gds` runs six Neo4j Graph Data Science algorithms on the loaded graph and writes their results
 back on the nodes, so the API reads them with indexed Cypher instead of recomputing them per request.
 Numbers, run times and top-10 tables: [`reports/gds_report.md`](reports/gds_report.md).
 
@@ -208,10 +209,87 @@ Numbers, run times and top-10 tables: [`reports/gds_report.md`](reports/gds_repo
 | WCC | lineage edges | Which models belong to the same family? | `Model.family_id` |
 | Louvain | lineage edges, undirected | Which sub-families exist inside a big family? | `Model.community` |
 | Node Similarity (Jaccard) | Model → Dataset / Paper | Which models were trained on the same data? | `(:Model)-[:SIMILAR_TO {score}]-(:Model)` |
-| FastRP (64-d) | lineage + datasets + papers + publishers + architectures | A vector per model, used by the link-prediction step | `Model.embedding` |
+| FastRP (64-d) | lineage + datasets + papers + publishers + architectures | A vector per model (position in the whole graph) | `Model.embedding` |
+| FastRP (64-d, content) | datasets + papers + publishers + architectures, **no lineage** | "What is this model made of", used by the link prediction | `Model.content_embedding` |
 
 PageRank on lineage edges differs from `descendant_count`: a model whose descendants are themselves
 heavily reused ranks higher than one with many dead-end quantized copies.
+
+What we found on the full graph (156k models, all six algorithms in about 15 s):
+
+- the top PageRank models are the Qwen base models (Qwen3.8-27B, Qwen3.5-9B...), each with ~2,000 descendants;
+- 58,384 lineage families, 47,558 of them a single model; the largest (Qwen3) has 24,600 models;
+- Louvain modularity is 0.99: families split into very clean sub-families (Mistral-Nemo, Llama-3.1-8B, Gemma 4...);
+- Node Similarity can only compare the 17,430 models that declare at least 2 datasets or papers
+  (`degreeCutoff: 2`); 30,049 declare only one and 108,592 none, which is why `/similar` is often empty;
+- the most similar pairs **across families** are copies of `sentence-transformers/all-MiniLM-L6-v2` that
+  declare the same training data but not their parent: exactly the gap the link-prediction step fills.
+
+FastRP is computed on every node of its projection (datasets and papers carry the signal) but written
+back on `Model` nodes only. The content embedding leaves the lineage edges out on purpose: the link prediction learns from those
+edges, so an embedding built on them would leak the answer into the features.
+
+---
+
+## Parent prediction (link prediction)
+
+Many models (GGUF copies, re-uploads, fine-tunes) don't declare their parent, so their lineage and their
+license check stop at them. `make predict` (after `make gds`) learns from the **declared** lineage edges to
+guess the missing ones. Code: [`scripts/link_prediction.py`](scripts/link_prediction.py) and
+[`scripts/ml/`](scripts/ml/). Results: [`reports/link_prediction.md`](reports/link_prediction.md).
+
+1. **Temporal split of the labels.** Children are sorted by creation date: the oldest 65 % train the model,
+   the next 15 % choose the model and the threshold, the newest 20 % are the test set. This is the real use
+   case (predict for new uploads), and a candidate parent is always older than its child. It is not a fully
+   historical setup: downloads, likes and card metadata are today's values, not the ones known when the child
+   was uploaded, and the name idf is computed on every model name. To check how much the result depends on
+   later popularity, we also train the model **without** downloads and likes (row "without popularity" below).
+2. **Candidates.** For each child, the 50 older models sharing its rarest name tokens (idf-weighted inverted
+   index, the date filter is applied before the 400-models-per-token cap); a model with the same name once suffixes like `GGUF`, `AWQ`, `Q4_K_M` are removed always comes
+   first. We report the **candidate recall** (share of test children whose real parent is in the 50): it is the
+   ceiling for every metric below.
+3. **Features (13)**, all things a person would also check: name overlap (idf share, same base name, Jaccard),
+   same publisher, same architecture, same task, size ratio, shared datasets and papers, candidate popularity,
+   days between the two uploads, cosine of the content embeddings.
+4. **Models.** A name-only baseline, a logistic regression and a gradient boosting (scikit-learn). The best one
+   on validation MRR is kept. Metrics: AUC on pairs, Hits@1, Hits@5 and MRR on children.
+5. **Writing hypotheses.** For used models (≥ 100 downloads) that declare no parent and have fewer than 10
+   children, the best candidate is written as `(:Model)-[:PREDICTED_PARENT {score, rank, model_version}]->(:Model)`
+   when its score passes a threshold: the lowest score that still gives **80 % top-1 precision on validation**.
+   We write only the top-1 guess because that is what the threshold measures, and if no threshold reaches 80 %
+   we write nothing. These edges are never mixed with the declared lineage:
+   `/lineage` and `/license-check` ignore them, `/models/{id}/predicted-parents` returns them as `HYPOTHESIS`.
+
+Results on the full graph (4,000 test children created after the training period, run time about 3 min):
+
+| Ranker | AUC | Hits@1 | Hits@5 | MRR |
+| --- | --- | --- | --- | --- |
+| Name-only baseline | 0.72 | 0.16 | 0.39 | 0.27 |
+| Logistic regression | 0.93 | 0.39 | 0.61 | 0.48 |
+| **Gradient boosting** | **0.95** | **0.43** | **0.62** | **0.51** |
+| Gradient boosting without popularity (no downloads, no likes) | 0.91 | 0.31 | 0.53 | 0.41 |
+| Gradient boosting + name rule (what we write) | 0.75 | 0.35 | 0.50 | 0.42 |
+
+- The learned rankers find the declared parent first **2.7 times more often** than the name baseline. The
+  ceiling is 0.675: for a third of the children the real parent shares no rare name token, so it is not even
+  a candidate (renamed fine-tunes, merges).
+- Popularity of the candidate (likes, downloads) and name overlap matter most; content embedding and shared
+  datasets add little, because most cards declare no dataset. Popularity is today's value, so we checked the
+  model **without it**: Hits@1 drops from 0.43 to 0.31, still about twice the name baseline. Part of the result
+  comes from "parents are popular", but most of it comes from names, size and architecture.
+- Our first run wrote absurd pairs with a score of 1.0 (`facebook/bart-large-mnli` → a DeBERTa model): old
+  models without a creation date and popular candidates with no name in common. We added a **name rule** (the
+  parent must carry at least half of the child's name information) and skip undated models. It costs some
+  Hits@1 but every written pair now looks like a real copy (`Qwen/Qwen3-Coder-Next-FP8` →
+  `Qwen/Qwen3-Coder-Next`, `Qdrant/all-MiniLM-L6-v2-onnx` → `sentence-transformers/all-MiniLM-L6-v2`).
+- Above the threshold (0.67) the top-1 guess is right **78.5 %** of the time on the test set, for 18 % of
+  the children. Written: 1,381 `PREDICTED_PARENT` edges, one per model, for 1,381 of the 22,514 orphan models.
+- Lucas's review of this PR found three method problems that we fixed: a fallback threshold of 0.5 when no
+  threshold reached 80 % (now nothing is written), rank 2 and 3 guesses written without a measured precision
+  (now only the top-1 guess), and newer popular models pushing an older parent out of the capped candidate
+  lists (the date filter now runs before the cap).
+- Known mistake type: siblings with very similar names (`bert-base-multilingual-uncased` →
+  `bert-base-uncased`, `multilingual-e5-large-instruct` → `multilingual-e5-small`). That is why it stays a hypothesis with a score.
 
 ---
 
@@ -252,6 +330,7 @@ guardrails and evidence labels live. Diagrams of the services, the API layers an
 | `make seed` | Build the full graph in Neo4j (transform + load + validate) |
 | `make seed-sample` | Load the small fixture into Neo4j (used by CI) |
 | `make gds` | Run the graph algorithms on the loaded graph -> `reports/gds_report.md` |
+| `make predict` | Predict missing parents (needs `make gds`) -> `reports/link_prediction.md` |
 | `make test` | All tests + coverage (integration tests skip if the stack is down) |
 | `make test-unit` | Fast tests only, no Docker needed |
 | `make test-integration` | Tests against the running stack |

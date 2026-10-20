@@ -66,11 +66,17 @@ The cost is that they are only as fresh as the last `make seed`, which is fine f
 
 ## 6. Results of graph algorithms
 
-`make gds` writes `pagerank`, `family_id`, `community` and `embedding` on Model nodes, and
+`make gds` writes `pagerank`, `family_id`, `community`, `embedding` and `content_embedding` on Model nodes, and
 `SIMILAR_TO {score}` relationships between models. We keep them as properties (with range indexes on
 the first three) and not as `Family` / `Community` nodes: they are recomputed after every load, they are
 only filtered or sorted on, and a new node type would add nothing to traverse. `SIMILAR_TO` is the
 exception because "similar models" is something we do traverse.
+
+`make predict` adds `PREDICTED_PARENT {score, rank, model_version}` relationships. They get their **own
+type** instead of reusing `FINETUNED_FROM` with a flag: every lineage query (`/lineage`, the license check,
+`descendant_count`) matches the four declared types only, so a guess can never leak into a verified answer
+by forgetting a `WHERE`. A user who wants the guesses asks for them explicitly
+(`/models/{id}/predicted-parents`, labelled `HYPOTHESIS`).
 
 ## 7. Where each fact comes from
 
@@ -99,4 +105,5 @@ exception because "similar models" is something we do traverse.
   renamed (e.g. `squad` became `rajpurkar/squad`), others are private or deleted. The other 39.3% stay
   `Dataset {listed: false}` with an unknown license (`reports/etl_report.md`).
 - Many cards declare no parent at all (e.g. `mistralai/Mistral-7B-Instruct-v0.2` does not cite
-  `Mistral-7B-v0.2`): that is the gap the link-prediction step will try to fill, as hypotheses.
+  `Mistral-7B-v0.2`): that is the gap the link-prediction step fills, as `PREDICTED_PARENT` hypotheses kept apart from
+  the declared lineage.

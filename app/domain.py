@@ -23,6 +23,8 @@ OTHER_REL_TYPES = (
 )
 # Written by the GDS step, never declared in a card: always DERIVED.
 DERIVED_REL_TYPES = ("SIMILAR_TO",)
+# Written by the link-prediction model (`make predict`): always HYPOTHESIS, with a score.
+HYPOTHESIS_REL_TYPES = ("PREDICTED_PARENT",)
 
 
 class Evidence(str, Enum):

@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, Query
 from app.config import Settings
 from app.dependencies import get_app_settings, get_repository
 from app.domain import Relation
-from app.models.analytics import FamilyResponse, SimilarResponse
+from app.models.analytics import FamilyResponse, PredictedParentsResponse, SimilarResponse
 from app.models.catalog import ModelDetail, SearchResponse
 from app.models.license import LicenseCheckResponse
 from app.models.lineage import DescendantPage, LineageResponse
@@ -84,6 +84,20 @@ def similar_models(
 ) -> SimilarResponse:
     """Node Similarity (Jaccard) on declared datasets and papers. Needs `make gds`."""
     return AnalyticsService(repo).similar(model_id, limit)
+
+
+@router.get(
+    "/{model_id:path}/predicted-parents",
+    response_model=PredictedParentsResponse,
+    summary="Guessed parents of a model that declares none",
+)
+def predicted_parents(
+    model_id: str,
+    limit: int = Query(default=3, ge=1, le=3),
+    repo: GraphRepository = Depends(get_repository),
+) -> PredictedParentsResponse:
+    """Link prediction (HYPOTHESIS, with a score). Needs `make predict`."""
+    return AnalyticsService(repo).predicted_parents(model_id, limit)
 
 
 @router.get("/{model_id:path}/family", response_model=FamilyResponse, summary="Family, community and rank")

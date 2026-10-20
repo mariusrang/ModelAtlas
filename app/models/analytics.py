@@ -45,6 +45,27 @@ class SimilarResponse(BaseModel):
     note: str | None = None
 
 
+class PredictedParent(BaseModel):
+    """A parent guessed by the link-prediction model."""
+
+    model: ModelSummary
+    score: float = Field(description="Probability given by the model (0 to 1), not a calibrated certainty")
+    rank: int
+    name_score: float | None = Field(default=None, description="Share of the child's rare name tokens found here")
+    content_cosine: float | None = Field(default=None, description="Cosine of the FastRP content embeddings")
+
+
+class PredictedParentsResponse(BaseModel):
+    """Possible parents of a model that does not declare one."""
+
+    model_id: str
+    evidence: Evidence = Evidence.HYPOTHESIS
+    model_version: str | None = Field(default=None, description="Which trained ranker wrote these predictions")
+    declared_parents: int = Field(description="Parents declared in the card (if > 0, trust those instead)")
+    results: list[PredictedParent]
+    note: str | None = None
+
+
 class FamilyMember(BaseModel):
     """A member of the same community."""
 
