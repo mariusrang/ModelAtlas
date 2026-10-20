@@ -152,3 +152,20 @@ kind = "normal"
 question = "What parent is predicted for Qwen/Qwen3-Coder-Next-FP8? Explain that this is a machine-learning hypothesis rather than a declared lineage link."
 expect = "answer"
 tools = ["predicted_parents"]
+
+# French questions to the agent evaluation
+
+[[case]]
+id = "fr-lineage-mistral-instruct"
+kind = "normal"
+question = "Quel est le modèle parent de mistralai/Mistral-7B-Instruct-v0.1 selon la lignée déclarée dans le graphe ?"
+expect = "answer"
+tools = ["lineage", "model_details"]
+mentions = ["mistral"]
+
+[[case]]
+id = "fr-count-text-generation"
+kind = "normal"
+question = "Combien de modèles répertoriés ont la tâche text-generation dans le graphe ? Exclue les modèles portant le label Unlisted."
+expect = "answer"
+tools = ["text_to_cypher"]
