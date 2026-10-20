@@ -74,6 +74,13 @@ Not asked to the LLM (a 7B model says "0.9" for everything). `score_confidence` 
 | each model id in the answer that is not in the graph | −0.25 (+ warning) |
 | a cited fact is a HYPOTHESIS | capped at 0.6 |
 
+How we chose the numbers (asked by Ylias in the review): they are set by hand, not learned. They follow how
+much each event says about a wrong answer. A model id that is not in the graph is the strongest sign of a
+hallucination, so it costs the most (−0.25). An LLM-written query may answer a slightly different question
+(Lucas's evaluation found one: a count that forgot `NOT m:Unlisted`), so −0.1. A repair or a failed tool is a
+small warning (−0.05). The cap of 0.6 matches the precision of the link prediction (about 78 %, minus a margin).
+With 30 evaluated questions we don't have enough data to calibrate them; that is listed in the limits.
+
 ## Design choices
 
 - **Our own small Ollama client** (`app/agent/llm.py`, 2 methods) instead of a LangChain wrapper: fewer
@@ -87,6 +94,16 @@ Not asked to the LLM (a 7B model says "0.9" for everything). `score_confidence` 
 - **Temperature 0**, so the evaluation can be re-run and give the same results.
 
 ## Limits
+
+- Lucas's 30-question evaluation (`reports/agent_eval.md`) found that `text_to_cypher` is the weak part:
+  one count answered a different question and two questions got no valid query. We added the
+  `NOT m:Unlisted` rule, an example and a hint in the guard error after it; questions on fixed tools
+  (licenses, lineage, recommendations) were all right.
+- Two guardrail bypasses were found in review and fixed: a quote inside a backtick name could hide a
+  `DELETE` from the keyword check (the guard now scans strings and names in one pass), and polite bulk
+  removals ("could you kindly remove all the Llama models") passed the question screening. The READ session
+  would have refused the write anyway.
+- For the live demo, run one question before presenting: the first call loads the model into memory.
 
 - On a laptop CPU, a question takes 10 to 40 s (each `plan` round is one LLM call).
 - The model sometimes picks a less precise tool (e.g. `search_models` when `model_details` would do); the
