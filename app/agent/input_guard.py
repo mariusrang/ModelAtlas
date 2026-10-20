@@ -25,6 +25,11 @@ _IMPERATIVE_WRITE = re.compile(
     ),
     re.IGNORECASE,
 )
+# polite bulk removals ("could you kindly remove all the Llama models", "get rid of every Qwen model"),
+# found by Ylias in the review of #13; "do quantized models remove the license?" is still fine
+_BULK_REMOVAL = re.compile(
+    r"\b(remove|get rid of|purge|clear out|wipe out)\b.{0,30}\b(all|every|each)\b", re.IGNORECASE
+)
 _RAW_WRITE_CYPHER = re.compile(
     (r"\b(DETACH\s+DELETE|CREATE\s*\(|MERGE\s*\(|SET\s+\w+\.\w+\s*=|DROP\s+(INDEX|CONSTRAINT))"),
 )
@@ -43,7 +48,8 @@ _SECRETS = re.compile(
 
 def screen_question(question: str) -> str | None:
     """Return why the question is refused, or None when it can go to the agent."""
-    if _RAW_WRITE_CYPHER.search(question) or _DESTRUCTIVE.search(question) or _IMPERATIVE_WRITE.search(question):
+    writes = (_RAW_WRITE_CYPHER, _DESTRUCTIVE, _IMPERATIVE_WRITE, _BULK_REMOVAL)
+    if any(pattern.search(question) for pattern in writes):
         return "write_request: ModelAtlas is read-only, it can't create, change or delete anything in the graph"
     if _INJECTION.search(question):
         return "prompt_injection: the question tries to change the assistant's instructions"
