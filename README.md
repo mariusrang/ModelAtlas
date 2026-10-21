@@ -429,7 +429,7 @@ guardrails and evidence labels live. Diagrams of the services, the API layers an
 | `make help` | List every command |
 | `make install` | Create `.venv` and install dependencies |
 | `make env` | Create `.env` from `.env.example` |
-| `make run` | Run the API locally with auto-reload (port 8000), on the Neo4j and Ollama of the docker stack |
+| `make run` | Run the API locally with auto-reload (port 8000), on the Neo4j and Ollama of the docker stack (it forces `localhost` and ignores `NEO4J_URI` / `OLLAMA_BASE_URL` from `.env`) |
 | `make ui` | Run the Streamlit app locally (port 8501) |
 | `make docker-run` | Build and start the whole stack |
 | `make docker-down` | Stop the stack (data is kept) |
@@ -482,13 +482,13 @@ reports/        generated numbers: data profile, ETL and load reports
 
 ### Team contributions
 
-Counted on `main` on 21 October 2026 (`git shortlog -sn --no-merges`, GitHub pull requests).
+Counted on `main` after the final PRs #17 to #20 (`git shortlog -sn --no-merges main`, GitHub pull requests).
 
 | Member | Commits | Share | PRs opened | Reviews given (PRs) |
 | --- | ---: | ---: | --- | --- |
-| Marius Rang | 96 | 61 % | #1 #2 #3 #4 #5 #9 #10 #12 #13 #14 | #6 #7 #8 #11 #15 #16 |
-| Ylias Guetari | 35 | 22 % | #6 #16 | #5 #7 #9 #10 #13 |
-| Lucas Magret Delord | 26 | 17 % | #7 #8 #11 #15 | #6 #12 |
+| Marius Rang | 106 | 60 % | #1 #2 #3 #4 #5 #9 #10 #12 #13 #14 #17 | #6 #7 #8 #11 #15 #16 #18 #19 #20 |
+| Ylias Guetari | 38 | 21 % | #6 #16 #20 | #5 #7 #9 #10 #13 #14 #17 #18 #19 |
+| Lucas Magret Delord | 34 | 19 % | #7 #8 #11 #15 #18 #19 | #6 #12 #17 #20 |
 
 Merged pull requests:
 
@@ -510,10 +510,14 @@ Merged pull requests:
 | [#14](https://github.com/mariusrang/ModelAtlas/pull/14) | Marius | Streamlit web app |
 | [#15](https://github.com/mariusrang/ModelAtlas/pull/15) | Lucas | agent evaluation extended to 30 questions |
 | [#16](https://github.com/mariusrang/ModelAtlas/pull/16) | Ylias | graph schema v2 |
+| [#17](https://github.com/mariusrang/ModelAtlas/pull/17) | Marius | final docs, ER diagram, agent evaluation run 2, review fixes |
+| [#18](https://github.com/mariusrang/ModelAtlas/pull/18) | Lucas | refuse expensive generated Cypher (EXPLAIN plan), 504 on query timeouts |
+| [#19](https://github.com/mariusrang/ModelAtlas/pull/19) | Lucas | stricter agent grading, separate reports, notebook sections for the demo |
+| [#20](https://github.com/mariusrang/ModelAtlas/pull/20) | Ylias | question screen without false positives |
 
 The first four PRs were merged on the first day, before the review rule was set up, so they have no review.
 From #5 on, every PR was reviewed by another member before merge ([CONTRIBUTING.md](CONTRIBUTING.md)), except
-the web app (#14), merged without a review on the last day.
+the web app (#14), merged on the last day and reviewed by Ylias after the merge.
 
 ---
 

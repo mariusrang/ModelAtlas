@@ -85,6 +85,7 @@ erDiagram
 | `MODEL_PARENT.parent` with no `MODEL_CARD` row (22% of the edges) | `(:Model:Unlisted)` node | the foreign key would be broken in SQL; in the graph we keep the node so the tree and the license check don't stop there |
 | `author` column | `(:Organization)` + `PUBLISHED_BY` | "who builds on X" groups by publisher without a full scan |
 | `MODEL_LICENSE`, `DATASET_LICENSE` | `(:License)` + `HAS_LICENSE` from models **and** datasets | one place for the license rules, shared by models and their training data |
+| one license per model, several per dataset | a model has zero or one license, a dataset zero or many | the Hub writes one `license:` tag per model in practice (none of the 2,001 models of our test sample has two), while 58 datasets declare several, so only datasets keep the full list. If a model had several, the ETL keeps the first one (`ParsedTags.license`) and the license check would miss the others: a known limit |
 | `MODEL_DATASET` | `TRAINED_ON` | link table becomes a relationship |
 | `MODEL_DATASET.dataset` with no `DATASET_CARD` row | `(:Dataset {listed: false})` | cited but no card: license unknown, see modeling.md §7 |
 | `MODEL_PAPER`, `MODEL_LANGUAGE`, `DATASET_LANGUAGE` | `CITES`, `SUPPORTS` | link tables become relationships |

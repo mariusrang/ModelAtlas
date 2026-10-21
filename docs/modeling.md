@@ -92,7 +92,8 @@ Why a label for missing models but a property for missing datasets? Lineage quer
 all the time and must often skip the missing ones (`WHERE NOT m:Unlisted`): a label is checked in the node
 record itself and the planner can use it, and every algorithm projection (GDS) can include or exclude it.
 Datasets are never traversed in a long path: we only read `listed` when we show a dataset or check a
-training-data license, so a boolean property is enough and keeps the Dataset node simple.
+training-data license, so a boolean property is enough and keeps the Dataset node simple. In the full graph,
+15,495 datasets are cited and 9,451 have a card, so 6,044 have `listed = false`.
 
 ## 8. Alternatives we rejected
 
