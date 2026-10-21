@@ -61,9 +61,10 @@ def grade(case: Case, result: dict) -> list[str]:
     problems = []
     if result["status"] != STATUS_FOR[case.expect]:
         problems.append(f"status {result['status']}, expected {STATUS_FOR[case.expect]}")
-    called = [step["tool"] for step in result.get("steps", [])]
+    # a failed call doesn't count: the expected tool must have returned something
+    called = [step["tool"] for step in result.get("steps", []) if step.get("success", True)]
     if case.tools and not set(case.tools) & set(called):
-        problems.append(f"none of {case.tools} was called (called: {called or 'nothing'})")
+        problems.append(f"none of {case.tools} succeeded (succeeded: {called or 'nothing'})")
     cited = set(result.get("fact_ids", []))
     text = " ".join([result.get("answer", "")] + [f["statement"] for f in result.get("facts", []) if f["id"] in cited])
     problems += [f"'{word}' missing" for word in case.mentions if word.lower() not in text.lower()]
@@ -94,7 +95,9 @@ def summary(cases: list[Case], results: list[dict]) -> dict:
     attempts = [a for r in results for a in r.get("cypher", [])]
     generated = [r for r in results if r.get("cypher")]
     first_try = [r for r in generated if r["cypher"][0]["stage"] == "ok"]
-    confidences = [r["confidence"] for r in results if r.get("confidence") is not None]
+    confidences = [
+        r["confidence"] for r in results if r.get("status") == "answered" and r.get("confidence") is not None
+    ]
     return {
         "cases": len(cases),
         "passed": sum(1 for r in results if not r["problems"]),
@@ -154,10 +157,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--uri", default="bolt://localhost:7687")
     parser.add_argument("--ollama", default="http://localhost:11434")
     parser.add_argument("--only", choices=["normal", "trap"], help="run only one kind of case")
+    parser.add_argument(
+        "--output", default="agent_eval.md", help="report file name in reports/ (keep the old runs: agent_eval_run3.md)"
+    )
     args = parser.parse_args(argv)
 
     cases = [c for c in load_cases() if args.only in (None, c.kind)]
-    # .env holds the docker service names (neo4j, ollama); this script runs on the host
+    # this script runs on the host: use the published ports, whatever an old .env says
     settings = get_settings().model_copy(update={"neo4j_uri": args.uri, "ollama_base_url": args.ollama})
     client = Neo4jClient(settings)
     llm = OllamaChat(settings)
@@ -171,9 +177,9 @@ def main(argv: list[str] | None = None) -> int:
     finally:
         client.close()
     REPORTS_DIR.mkdir(exist_ok=True)
-    (REPORTS_DIR / "agent_eval.md").write_text(render_report(cases, results, llm.name), encoding="utf-8")
+    (REPORTS_DIR / args.output).write_text(render_report(cases, results, llm.name), encoding="utf-8")
     passed = sum(1 for r in results if not r["problems"])
-    logger.info(f"{passed}/{len(results)} cases passed -> reports/agent_eval.md")
+    logger.info(f"{passed}/{len(results)} cases passed -> reports/{args.output}")
     return 0
 
 
