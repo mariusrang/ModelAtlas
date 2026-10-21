@@ -57,14 +57,17 @@ make env           # creates .env from .env.example -> change NEO4J_PASSWORD and
 make docker-run    # builds and starts Neo4j, Ollama, API, UI and Nginx
 make seed-sample   # small real sample (~1 min), or `make data` + `make seed` for the full graph
 make ollama-pull   # first time only: downloads the local LLM (~4.7 GB)
+make gds           # graph algorithms (PageRank, communities, similarity, embeddings)
+make predict       # parent prediction, needs `make gds`
 ```
+
+The agent runs a local 7B model on the CPU: in `.env`, keep `LLM_TIMEOUT_SECONDS=300` (one question can need
+several LLM calls).
 
 Demo notebook: [demo.ipynb](demo.ipynb) (exploration + charts, needs the stack running).
 
-Use a Python 3.12+ environment for the notebook (NetworkX 3.7 requires it), and
-load the full graph with both model cards and dataset cards first. The dataset
-analysis requires the dataset-card ETL from PR #5. Saved outputs record the data
-revisions used for that execution.
+The notebook needs Python 3.12+ (NetworkX 3.7 requires it) and the full graph, with both model cards and
+dataset cards (`make data` + `make seed`). The saved outputs record the data revisions they were run on.
 
 ```bash
 python -m pip install -r requirements-notebook.txt
@@ -113,7 +116,7 @@ The transform applies rules from [`config/scope.toml`](config/scope.toml), each 
 | parents missing from the dump become `:Unlisted` nodes | 22% of lineage edges point to a model that is not public anymore |
 | ignore arXiv `1910.09700` | cited by 126k models only because it is in the default card template |
 | precompute depth, descendants, roots | shown on every model page; 99.6% of chains are <= 5 levels deep |
-| read dataset cards only for cited datasets | 15.5k datasets are cited out of ~631k cards; 9,400 of them (60.7%) have a card |
+| read dataset cards only for cited datasets | 15.5k datasets are cited out of ~631k cards; 9,451 of them (61.0%) have a card |
 
 Result (full graph, [`reports/load_report.md`](reports/load_report.md)): 156,071 models (6,138 of them
 `Unlisted`), 101,781 lineage edges, 43.5k organizations, 15.5k datasets, 9.4k papers, all validation checks
@@ -138,11 +141,13 @@ passed, loaded in about 100 s.
 | `Language` | `code` | `SUPPORTS` |
 | `Architecture` | `id` | `HAS_ARCHITECTURE` |
 
-8 uniqueness constraints, 7 range indexes and 1 fulltext index, all in [`app/database/schema.py`](app/database/schema.py)
+8 uniqueness constraints, 10 range indexes and 1 fulltext index, all in [`app/database/schema.py`](app/database/schema.py)
 with the query each one serves. Why each concept is a node or a property, why four lineage types and not one,
 and the alternatives we rejected: [`docs/modeling.md`](docs/modeling.md). How our schema differs from the one an
 AI assistant proposes from the same description: [`docs/anti_genericity/`](docs/anti_genericity/README.md).
 License rules and their sources: [`docs/licenses.md`](docs/licenses.md).
+The source data is two Parquet tables; their ER diagram and how each table became nodes and relationships:
+[`docs/er_diagram.md`](docs/er_diagram.md).
 
 ---
 
@@ -178,7 +183,7 @@ Model ids keep their slash (`/models/mistralai/Mistral-7B-v0.1/lineage`). Some e
 curl "http://localhost/api/models/search?q=mistral%207b&limit=3"
 curl "http://localhost/api/models/mistralai/Mistral-7B-v0.1/descendants?depth=1&relation=quantized&limit=5"
 curl "http://localhost/api/models/TheBloke/Mistral-7B-Instruct-v0.2-GGUF/license-check"
-curl "http://localhost/api/connection?a=HuggingFaceH4/zephyr-7b-beta&b=mistralai/Mistral-7B-Instruct-v0.2"
+curl "http://localhost/api/connection?a=HuggingFaceH4/zephyr-7b-beta&b=teknium/OpenHermes-2.5-Mistral-7B"
 curl -X POST "http://localhost/api/recommend" -H "Content-Type: application/json" ^
      -d "{\"task\": \"text-generation\", \"max_params_b\": 8, \"commercial_use\": true, \"limit\": 5}"
 ```
@@ -195,7 +200,12 @@ Design choices, briefly:
   `ok`. A non-commercial training dataset also gives `needs_review` (legal grey zone, not a ban). Rules live in
   [`config/licenses.toml`](config/licenses.toml). Informational only, not legal advice.
 - **No N+1**: the recommendation checks the licenses of its whole shortlist in one query (`UNWIND $ids`).
-- **Pagination**: keyset on `(downloads, id)` instead of `SKIP`, so page 50 costs the same as page 1.
+- **Pagination**: keyset on `(downloads, id)` instead of `SKIP`, so the API never reads and drops the rows of the
+  previous pages. It does not make page 50 free: each page still expands every lineage path below the model
+  before sorting, and that expansion is the real cost for a big family (Qwen, ~24k derived models).
+- **Known limit, path explosion**: `lineage_up` and `connection` list paths before keeping the shortest ones, and
+  merges multiply paths. The depth cap (6) and the 10 s query timeout bound the damage: a query that runs too long
+  is stopped by Neo4j and the API answers `504 query_timeout` in the usual error format.
 
 ---
 
@@ -286,7 +296,7 @@ Results on the full graph (4,000 test children created after the training period
   `Qwen/Qwen3-Coder-Next`, `Qdrant/all-MiniLM-L6-v2-onnx` → `sentence-transformers/all-MiniLM-L6-v2`).
 - Above the threshold (0.67) the top-1 guess is right **78.5 %** of the time on the test set, for 18 % of
   the children. Written: 1,381 `PREDICTED_PARENT` edges, one per model, for 1,381 of the 22,514 orphan models.
-- Lucas's review of this PR found three method problems that we fixed: a fallback threshold of 0.5 when no
+- Code review found three method problems that we fixed: a fallback threshold of 0.5 when no
   threshold reached 80 % (now nothing is written), rank 2 and 3 guesses written without a measured precision
   (now only the top-1 guess), and newer popular models pushing an older parent out of the capped candidate
   lists (the date filter now runs before the cap).
@@ -328,11 +338,25 @@ curl -X POST "http://localhost/api/agent/ask" -H "Content-Type: application/json
 `make agent-eval` runs the cases of [`config/agent_eval.toml`](config/agent_eval.toml) (normal questions and
 traps: destructive requests, prompt injection, secrets, off-topic) and writes `reports/agent_eval.md`.
 
-First results with `qwen2.5:7b-instruct` on a laptop CPU (9 cases, temperature 0): **9/9 passed**, the 4 traps
-handled (3 refused before any LLM call, the off-topic one answered without calling a tool), the generated Cypher
-valid at the first try, no hallucinated model id, mean confidence 0.93, about 1 min per question.
-Two problems found by the first run and fixed: Qwen answered an English question in Chinese (the answer
-language is now set explicitly), and an off-topic question came back as "no answer" instead of "out of scope".
+Results with `qwen2.5:7b-instruct` on a laptop CPU (30 cases written by Lucas: 17 normal questions, 13 traps,
+temperature 0): **28/30 passed** automatically, all 9 destructive/injection/secret requests refused before any LLM
+call, the 3 off-topic ones answered "out of scope", generated Cypher valid at the first try, median 30 s per
+question. "Passed" only means the right tools were called, so we also checked every answer by hand
+([`reports/agent_eval.md`](reports/agent_eval.md), manual review at the end): **15 of the 17 normal questions are
+correct**, against 14 in Lucas's first run ([`reports/agent_eval_run1.md`](reports/agent_eval_run1.md)).
+
+- both counting questions are now exact (149,933 listed models, 52,325 text-generation models), where the first
+  run gave a wrong count and no answer;
+- the publisher ranking passed the automatic check but is **wrong**: the LLM put the `NOT :Unlisted` filter on
+  the organization instead of the models, so the counts are too high. This is the limit of text-to-Cypher:
+  a query can be valid and safe and still answer a slightly different question, which is why the response
+  always shows the query;
+- one question failed on an LLM timeout (now 300 s), and the invented-model trap was handled (no invented
+  license) but with a false "unknown model" warning on the id taken from the question, which we fixed.
+
+Earlier, a 9-case run had found two other problems, also fixed: Qwen answered an English question in Chinese (the
+answer language is now set explicitly), and an off-topic question came back as "no answer" instead of "out of
+scope".
 
 ---
 
@@ -352,6 +376,31 @@ The app only talks to the API, never to Neo4j, and shows the evidence label of e
 
 Pages link to each other (`/model?id=org/name`), so any model in a table opens its own page.
 All pages are tested with Streamlit's `AppTest` on a fake API (`tests/unit/test_ui_pages.py`).
+
+### Screenshots
+
+| Overview | Model explorer (family tree) |
+| --- | --- |
+| ![Overview page](docs/img/overview.png) | ![Model page with its family tree](docs/img/model_tree.png) |
+| **License check** | **Model finder** |
+| ![License check coloured by ancestor](docs/img/license_check.png) | ![Model finder shortlist](docs/img/finder.png) |
+| **Ask Atlas: an answer with cited facts** | **Ask Atlas: a refused request** |
+| ![Agent answer](docs/img/agent_answer.png) | ![Agent refusal](docs/img/agent_refusal.png) |
+| **API docs (Swagger)** | **Neo4j Browser: a family tree** |
+| ![Swagger UI of the API](docs/img/swagger.png) | ![Lineage in Neo4j Browser](docs/img/neo4j_browser.png) |
+
+### Docker images
+
+The CI builds and pushes both images to the GitHub Container Registry on every merge to `main` (tag `main`)
+and on version tags (tag `1.0.0` for `v1.0.0`):
+
+- API: [`ghcr.io/mariusrang/modelatlas-api`](https://github.com/mariusrang/ModelAtlas/pkgs/container/modelatlas-api)
+- UI: [`ghcr.io/mariusrang/modelatlas-ui`](https://github.com/mariusrang/ModelAtlas/pkgs/container/modelatlas-ui)
+
+```bash
+docker pull ghcr.io/mariusrang/modelatlas-api:main
+docker pull ghcr.io/mariusrang/modelatlas-ui:main
+```
 
 ---
 
@@ -380,7 +429,7 @@ guardrails and evidence labels live. Diagrams of the services, the API layers an
 | `make help` | List every command |
 | `make install` | Create `.venv` and install dependencies |
 | `make env` | Create `.env` from `.env.example` |
-| `make run` | Run the API locally with auto-reload (port 8000) |
+| `make run` | Run the API locally with auto-reload (port 8000), on the Neo4j and Ollama of the docker stack |
 | `make ui` | Run the Streamlit app locally (port 8501) |
 | `make docker-run` | Build and start the whole stack |
 | `make docker-down` | Stop the stack (data is kept) |
@@ -392,8 +441,11 @@ guardrails and evidence labels live. Diagrams of the services, the API layers an
 | `make seed` | Build the full graph in Neo4j (transform + load + validate) |
 | `make seed-sample` | Load the small fixture into Neo4j (used by CI) |
 | `make gds` | Run the graph algorithms on the loaded graph -> `reports/gds_report.md` |
+| `make gds-sample` | Same on the sample graph (used by CI) -> `reports/gds_report_sample.md` |
 | `make predict` | Predict missing parents (needs `make gds`) -> `reports/link_prediction.md` |
-| `make agent-eval` | Evaluate the agent on normal questions and traps (needs `make ollama-pull`) -> `reports/agent_eval.md` |
+| `make predict-sample` | Same on the sample graph (used by CI) -> `reports/link_prediction_sample.md` |
+| `make bench` | Benchmark naive vs optimized Cypher queries -> `reports/benchmarks.md` |
+| `make agent-eval` | Evaluate the agent on normal questions and traps (needs `make ollama-pull`) -> `reports/agent_eval.md` (`EVAL_REPORT=agent_eval_run3.md` to keep the old report) |
 | `make test` | All tests + coverage (integration tests skip if the stack is down) |
 | `make test-unit` | Fast tests only, no Docker needed |
 | `make test-integration` | Tests against the running stack |
@@ -425,10 +477,43 @@ reports/        generated numbers: data profile, ETL and load reports
 | Member | GitHub | Main parts |
 | --- | --- | --- |
 | Marius Rang (lead) | [@mariusrang](https://github.com/mariusrang) | data pipeline, graph API, agent |
-| Ylias Guetari | [@ylguet](https://github.com/ylguet) | license rules, schema diagram, anti-genericity appendix |
-| Lucas Magret Delord | [@Lucasmd9](https://github.com/Lucasmd9) | query benchmarks, EXPLAIN/PROFILE, demo notebook |
+| Ylias Guetari | [@ylguet](https://github.com/ylguet) | license rules, schema diagram v1, anti-genericity appendix, code reviews (GDS, agent guardrails) |
+| Lucas Magret Delord | [@Lucasmd9](https://github.com/Lucasmd9) | query benchmarks, EXPLAIN/PROFILE, demo notebook, agent evaluation (30 cases), schema v2, review of the link prediction |
 
-Every PR is reviewed by another member before merge ([CONTRIBUTING.md](CONTRIBUTING.md)).
+### Team contributions
+
+Counted on `main` on 21 October 2026 (`git shortlog -sn --no-merges`, GitHub pull requests).
+
+| Member | Commits | Share | PRs opened | Reviews given (PRs) |
+| --- | ---: | ---: | --- | --- |
+| Marius Rang | 96 | 61 % | #1 #2 #3 #4 #5 #9 #10 #12 #13 #14 | #6 #7 #8 #11 #15 #16 |
+| Ylias Guetari | 35 | 22 % | #6 #16 | #5 #7 #9 #10 #13 |
+| Lucas Magret Delord | 26 | 17 % | #7 #8 #11 #15 | #6 #12 |
+
+Merged pull requests:
+
+| PR | Author | What |
+| --- | --- | --- |
+| [#1](https://github.com/mariusrang/ModelAtlas/pull/1) | Marius | project skeleton: Docker stack, FastAPI `/health`, CI, Makefile |
+| [#2](https://github.com/mariusrang/ModelAtlas/pull/2) | Marius | data download and profiling |
+| [#3](https://github.com/mariusrang/ModelAtlas/pull/3) | Marius | ETL transform, batched loader, schema, graph validation |
+| [#4](https://github.com/mariusrang/ModelAtlas/pull/4) | Marius | graph API (search, lineage, descendants, license check, connection) |
+| [#5](https://github.com/mariusrang/ModelAtlas/pull/5) | Marius | dataset cards as a second source |
+| [#6](https://github.com/mariusrang/ModelAtlas/pull/6) | Ylias | license rules, anti-genericity appendix, schema diagram |
+| [#7](https://github.com/mariusrang/ModelAtlas/pull/7) | Lucas | naive vs optimized Cypher benchmarks |
+| [#8](https://github.com/mariusrang/ModelAtlas/pull/8) | Lucas | EXPLAIN / PROFILE analysis |
+| [#9](https://github.com/mariusrang/ModelAtlas/pull/9) | Marius | API review fixes, training-data licenses, dataset page |
+| [#10](https://github.com/mariusrang/ModelAtlas/pull/10) | Marius | GDS: PageRank, WCC, Louvain, Node Similarity, FastRP |
+| [#11](https://github.com/mariusrang/ModelAtlas/pull/11) | Lucas | demo notebook |
+| [#12](https://github.com/mariusrang/ModelAtlas/pull/12) | Marius | parent prediction (link prediction) |
+| [#13](https://github.com/mariusrang/ModelAtlas/pull/13) | Marius | LangGraph agent with guarded text-to-Cypher |
+| [#14](https://github.com/mariusrang/ModelAtlas/pull/14) | Marius | Streamlit web app |
+| [#15](https://github.com/mariusrang/ModelAtlas/pull/15) | Lucas | agent evaluation extended to 30 questions |
+| [#16](https://github.com/mariusrang/ModelAtlas/pull/16) | Ylias | graph schema v2 |
+
+The first four PRs were merged on the first day, before the review rule was set up, so they have no review.
+From #5 on, every PR was reviewed by another member before merge ([CONTRIBUTING.md](CONTRIBUTING.md)), except
+the web app (#14), merged without a review on the last day.
 
 ---
 
@@ -438,6 +523,10 @@ The course allows AI coding assistants, and we used one (Claude) to draft code, 
 documentation. We ran, tested and reviewed everything on the real data ourselves, and we tied each
 modeling choice to a number from our own data profile rather than to a generic schema
 ([`docs/modeling.md`](docs/modeling.md)). Each member can explain the parts listed next to their name.
+
+How it shows in the history: when a feature was written with the assistant in one working session, we split it
+into small commits by topic afterwards and ran the commit commands one after the other, so several commits share
+the same timestamp (for example the agent, the web app and the link prediction branches).
 
 ---
 
