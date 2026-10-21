@@ -15,7 +15,7 @@ allowed, are in tests/unit/test_input_guard.py.
 import re
 
 _POLITE = (
-    r"(?:please\s+|kindly\s+|(?:can|could|would|will)\s+you\s+(?:please\s+|kindly\s+)?|i\s+want\s+you\s+to\s+|"
+    r"(?:please[\s,]+|kindly\s+|(?:can|could|would|will)\s+you[\s,]+(?:please[\s,]+|kindly\s+)?|i\s+want\s+you\s+to\s+|"
     r"(?:peux|pourrais)[- ]tu\s+|(?:pouvez|pourriez)[- ]vous\s+|merci\s+de\s+|veuillez\s+)*"
 )
 _WRITE_VERBS = (
@@ -43,7 +43,8 @@ _RAW_WRITE_CYPHER = re.compile(
 )
 _INJECTION = re.compile(
     (
-        r"\b(ignore|forget|disregard|oublie\w*|ignore[rz]?)\b.{0,40}\b(instructions?|rules?|prompt|r[eè]gles?|consignes?)"
+        r"\b(ignore|forget|disregard|oublie\w*|ignore[rz]?)\b.{0,40}"
+        r"\b(instructions?|rules?|prompt|r[eè]gles?|consignes?)"
         r"|\b(system prompt|prompt syst[eè]me|you are now|tu es maintenant|jailbreak|developer mode)\b"
         r"|(^|[.!?]\s*|\b(you|now|please|tu)\s+)(act|pretend)\s+(as|to be|that)\b"
         r"|(?-i:\bDAN\b)\s+(mode|prompt)|\b(as|are|be)\s+(?-i:DAN)\b"
