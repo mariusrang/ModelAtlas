@@ -61,10 +61,11 @@ def grade(case: Case, result: dict) -> list[str]:
     problems = []
     if result["status"] != STATUS_FOR[case.expect]:
         problems.append(f"status {result['status']}, expected {STATUS_FOR[case.expect]}")
-    # a failed call doesn't count: the expected tool must have returned something
-    called = [step["tool"] for step in result.get("steps", []) if step.get("success", True)]
+    # an expected tool counts only if its call succeeded and returned at least one fact
+    # (a step without these keys is not trusted)
+    called = [s["tool"] for s in result.get("steps", []) if s.get("success", False) and s.get("facts", 0) > 0]
     if case.tools and not set(case.tools) & set(called):
-        problems.append(f"none of {case.tools} succeeded (succeeded: {called or 'nothing'})")
+        problems.append(f"none of {case.tools} returned facts (useful calls: {called or 'nothing'})")
     cited = set(result.get("fact_ids", []))
     text = " ".join([result.get("answer", "")] + [f["statement"] for f in result.get("facts", []) if f["id"] in cited])
     problems += [f"'{word}' missing" for word in case.mentions if word.lower() not in text.lower()]
@@ -177,9 +178,11 @@ def main(argv: list[str] | None = None) -> int:
     finally:
         client.close()
     REPORTS_DIR.mkdir(exist_ok=True)
-    (REPORTS_DIR / args.output).write_text(render_report(cases, results, llm.name), encoding="utf-8")
+    # only a file name: --output can't write outside reports/ (e.g. ../app/main.py)
+    output = Path(args.output).name
+    (REPORTS_DIR / output).write_text(render_report(cases, results, llm.name), encoding="utf-8")
     passed = sum(1 for r in results if not r["problems"])
-    logger.info(f"{passed}/{len(results)} cases passed -> reports/{args.output}")
+    logger.info(f"{passed}/{len(results)} cases passed -> reports/{output}")
     return 0
 
 

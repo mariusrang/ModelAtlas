@@ -28,7 +28,7 @@ def _result(**overrides):
     result = {
         "status": "answered",
         "answer": "It is under Apache 2.0.",
-        "steps": [{"tool": "license_check", "success": True}],
+        "steps": [{"tool": "license_check", "success": True, "facts": 2}],
         "facts": [{"id": 1, "statement": "verdict: commercial_use_ok"}],
         "fact_ids": [1],
         "warnings": [],
@@ -48,8 +48,8 @@ def test_grade():
     assert not ev.grade(trap, _result(status="refused"))
 
     # a failed call of the expected tool is not enough
-    failed = _result(steps=[{"tool": "license_check", "success": False}])
-    assert any("succeeded" in p for p in ev.grade(case, failed))
+    failed = _result(steps=[{"tool": "license_check", "success": False, "facts": 0}])
+    assert any("returned facts" in p for p in ev.grade(case, failed))
 
 
 def test_report():
@@ -94,3 +94,27 @@ def test_named_report_preserves_the_previous_run(tmp_path, monkeypatch, settings
     assert ev.main(["--output", "agent_eval_run3.md"]) == 0
     assert previous.read_text(encoding="utf-8") == "Previous run"
     assert "- passed: **1**" in (tmp_path / "agent_eval_run3.md").read_text(encoding="utf-8")
+
+
+def test_a_tool_without_facts_or_status_does_not_count():
+    case = ev.Case(id="x", question="q", expect="answer", tools=["license_check"])
+    empty = _result(steps=[{"tool": "license_check", "success": True, "facts": 0}])
+    unknown = _result(steps=[{"tool": "license_check"}])
+    assert any("returned facts" in p for p in ev.grade(case, empty))
+    assert any("returned facts" in p for p in ev.grade(case, unknown))
+
+
+def test_output_stays_in_the_reports_folder(tmp_path, monkeypatch, settings):
+    reports = tmp_path / "reports"
+    monkeypatch.setattr(ev, "REPORTS_DIR", reports)
+    monkeypatch.setattr(ev, "get_settings", lambda: settings)
+    monkeypatch.setattr(ev, "load_cases", lambda: [ev.Case(id="x", question="q", expect="answer")])
+    monkeypatch.setattr(ev, "Neo4jClient", MagicMock())
+    monkeypatch.setattr(ev, "OllamaChat", MagicMock(return_value=MagicMock(name="local-model")))
+    agent = MagicMock()
+    agent.ask.return_value = _result()
+    monkeypatch.setattr(ev, "ModelAtlasAgent", MagicMock(return_value=agent))
+
+    assert ev.main(["--output", "../outside.md"]) == 0
+    assert (reports / "outside.md").exists()
+    assert not (tmp_path / "outside.md").exists()
