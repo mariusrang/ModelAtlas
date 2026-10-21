@@ -36,7 +36,11 @@ install: venv ## Install runtime + dev dependencies into .venv
 env: ## Create .env from .env.example if you don't have one yet
 	@$(SYS_PY) scripts/dev.py env
 
-run: ## Run the API locally with auto-reload on http://localhost:8000 (needs Neo4j up)
+# the API on your machine reaches Neo4j and Ollama through their published ports, whatever .env says
+# (an old .env may still have the docker service names neo4j / ollama)
+run: export NEO4J_URI = bolt://localhost:7687
+run: export OLLAMA_BASE_URL = http://localhost:11434
+run: ## Run the API locally with auto-reload on http://localhost:8000 (needs `make docker-run` for Neo4j)
 	$(VENV_PY) -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
 ui: ## Run the Streamlit UI locally on http://localhost:8501 (API_BASE_URL defaults to the docker stack)
@@ -91,8 +95,9 @@ predict: ## Predict missing parents (link prediction, needs `make gds`) -> repor
 predict-sample: ## Same on the sample graph (used by CI) -> reports/link_prediction_sample.md
 	$(VENV_PY) -m scripts.link_prediction --sample
 
-agent-eval: ## Run the agent on config/agent_eval.toml (needs the stack + make ollama-pull) -> reports/agent_eval.md
-	$(VENV_PY) -m scripts.evaluate_agent
+EVAL_REPORT ?= agent_eval.md
+agent-eval: ## Run the agent on config/agent_eval.toml (needs the stack + make ollama-pull) -> reports/$(EVAL_REPORT)
+	$(VENV_PY) -m scripts.evaluate_agent --output $(EVAL_REPORT)
 
 .PHONY: bench
 bench: ## Benchmark naive vs optimized Cypher queries -> reports/benchmarks.md
