@@ -48,6 +48,13 @@ class ServiceUnavailableError(AppError):
     code = "service_unavailable"
 
 
+class QueryTimeoutError(AppError):
+    """A Neo4j query ran longer than QUERY_TIMEOUT_SECONDS and was stopped by the server."""
+
+    status_code = 504
+    code = "query_timeout"
+
+
 def _error_body(request: Request, code: str, detail) -> dict:
     return {"code": code, "detail": detail, "request_id": getattr(request.state, "request_id", None)}
 
