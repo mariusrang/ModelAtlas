@@ -47,6 +47,12 @@ _REL_VAR = re.compile(r"\[\s*([A-Za-z_][A-Za-z0-9_]*)\s*[:*{\]]")
 _PATH_VAR = re.compile(r"\b([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(?:shortestPath|allShortestPaths)?\s*\(", re.IGNORECASE)
 _RETURN_END = re.compile(r"\b(ORDER\s+BY|SKIP|LIMIT)\b", re.IGNORECASE)
 _ALIAS = re.compile(r"\s+AS\s+[A-Za-z_][A-Za-z0-9_]*\s*$", re.IGNORECASE)
+_RENAME = re.compile(
+    r"(?:\bcollect\s*\(\s*(?:DISTINCT\s+)?)?\b([A-Za-z_][A-Za-z0-9_]*)\s*\)?\s+AS\s+([A-Za-z_][A-Za-z0-9_]*)",
+    re.IGNORECASE,
+)
+# every property at once: m {.*} or properties(m) (embeddings included)
+_ALL_PROPERTIES = re.compile(r"\{\s*\.\s*\*|\bproperties\s*\(", re.IGNORECASE)
 _COLLECT_VAR = re.compile(r"^collect\s*\(\s*(?:DISTINCT\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*\)$", re.IGNORECASE)
 
 
@@ -156,7 +162,15 @@ def _whole_entity_errors(masked: str) -> list[str]:
     end = _RETURN_END.search(clause)
     clause = clause[: end.start()] if end else clause
     entities = set(_NODE_VAR.findall(masked)) | set(_REL_VAR.findall(masked)) | set(_PATH_VAR.findall(masked))
+    # follow renames: WITH m AS x, collect(m) AS models
+    renamed = True
+    while renamed:
+        new = {alias for source, alias in _RENAME.findall(masked) if source in entities} - entities
+        entities |= new
+        renamed = bool(new)
     errors = []
+    if _ALL_PROPERTIES.search(masked):
+        errors.append("m {.*} and properties(m) return every property (embeddings too): list the ones you need")
     for item in _split_top_level(clause):
         expression = _ALIAS.sub("", re.sub(r"^\s*DISTINCT\s+", "", item, flags=re.IGNORECASE)).strip()
         collected = _COLLECT_VAR.match(expression)

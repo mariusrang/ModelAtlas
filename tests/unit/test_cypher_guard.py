@@ -135,6 +135,13 @@ def test_unlisted_property_gets_a_hint():
         ("MATCH p = (m:Model)-[:FINETUNED_FROM*1..2]->(:Model) RETURN p", False),
         ("MATCH (m:Model) RETURN collect(m) AS models", False),
         ("MATCH (m:Model) RETURN *", False),
+        # ways around the rule found in review
+        ("MATCH (m:Model) WITH m AS x RETURN x LIMIT 5", False),
+        ("MATCH (m:Model) WITH collect(m) AS models RETURN models", False),
+        ("MATCH (m:Model) RETURN m {.*} AS model LIMIT 5", False),
+        ("MATCH (m:Model) RETURN properties(m) AS model LIMIT 5", False),
+        ("MATCH (m:Model) RETURN m {.id, .downloads} AS model LIMIT 5", True),
+        ("MATCH (m:Model) WITH m.id AS id RETURN id", True),
         ("MATCH (m:Model) RETURN m.id AS model, m.downloads AS downloads ORDER BY downloads DESC", True),
         ("MATCH (m:Model) RETURN count(m) AS models", True),
         ("MATCH (m:Model) WITH m ORDER BY m.downloads DESC RETURN collect(m.id) AS ids", True),

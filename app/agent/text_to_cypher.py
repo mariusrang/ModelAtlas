@@ -25,8 +25,8 @@ from app.errors import QueryTimeoutError
 
 logger = logging.getLogger(__name__)
 MAX_REPAIRS = 2
-# the graph has ~156k models and ~600k lineage edges: a sane query never needs more rows than that
-# at one step, while a cartesian product of two Model scans is ~24 billion
+# The full graph has ~156k models and ~102k declared lineage edges. Five million leaves room
+# for ordinary joins, while a cartesian product of two Model scans is ~24 billion rows.
 MAX_ESTIMATED_ROWS = 5_000_000
 
 PROMPT = f"""You write ONE read-only Cypher query for Neo4j 5 that answers the user's question.
