@@ -379,14 +379,16 @@ All pages are tested with Streamlit's `AppTest` on a fake API (`tests/unit/test_
 
 ### Screenshots
 
-| Overview | Model explorer (family tree) |
+| Overview: graph size and lineage mix | Overview: the models the ecosystem is built on (PageRank) |
 | --- | --- |
-| ![Overview page](docs/img/overview.png) | ![Model page with its family tree](docs/img/model_tree.png) |
-| **License check** | **Model finder** |
-| ![License check coloured by ancestor](docs/img/license_check.png) | ![Model finder shortlist](docs/img/finder.png) |
-| **Ask Atlas: an answer with cited facts** | **Ask Atlas: a refused request** |
-| ![Agent answer](docs/img/agent_answer.png) | ![Agent refusal](docs/img/agent_refusal.png) |
-| **API docs (Swagger)** | **Neo4j Browser: a family tree** |
+| ![Overview page](docs/img/overview.png) | ![PageRank ranking](docs/img/overview_pagerank.png) |
+| **Model explorer: facts declared in the card** | **License check: verdict and the license of every ancestor** |
+| ![Model page of zephyr-7b-beta](docs/img/model_card.png) | ![License check of a GGUF model](docs/img/license_check.png) |
+| **Model finder: a client brief and the shortlist** | **Ask Atlas: a license question, answered from cited facts** |
+| ![Model finder](docs/img/finder.png) | ![Agent answer on a license](docs/img/agent_license.png) |
+| **Ask Atlas: lineage + license in 3 tool calls** | **Ask Atlas: a write request refused by the guardrail** |
+| ![Agent answer with three tools](docs/img/agent_answer.png) | ![Agent refusal](docs/img/agent_refusal.png) |
+| **API docs (Swagger)** | **Neo4j Browser: a GGUF and its lineage** |
 | ![Swagger UI of the API](docs/img/swagger.png) | ![Lineage in Neo4j Browser](docs/img/neo4j_browser.png) |
 
 ### Docker images
@@ -486,9 +488,9 @@ Counted on `main` after the final PRs #17 to #20 (`git shortlog -sn --no-merges 
 
 | Member | Commits | Share | PRs opened | Reviews given (PRs) |
 | --- | ---: | ---: | --- | --- |
-| Marius Rang | 106 | 60 % | #1 #2 #3 #4 #5 #9 #10 #12 #13 #14 #17 | #6 #7 #8 #11 #15 #16 #18 #19 #20 |
-| Ylias Guetari | 38 | 21 % | #6 #16 #20 | #5 #7 #9 #10 #13 #14 #17 #18 #19 |
-| Lucas Magret Delord | 34 | 19 % | #7 #8 #11 #15 #18 #19 | #6 #12 #17 #20 |
+| Marius Rang | 106 | 59 % | #1 #2 #3 #4 #5 #9 #10 #12 #13 #14 #17 | #6 #7 #8 #11 #15 #16 #18 #19 #20 |
+| Ylias Guetari | 39 | 22 % | #6 #16 #20 | #5 #7 #9 #10 #13 #14 #17 #18 #19 |
+| Lucas Magret Delord | 35 | 19 % | #7 #8 #11 #15 #18 #19 | #6 #12 #17 #20 |
 
 Merged pull requests:
 
