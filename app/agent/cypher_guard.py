@@ -48,7 +48,10 @@ _PATH_VAR = re.compile(r"\b([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(?:shortestPath|allSho
 _RETURN_END = re.compile(r"\b(ORDER\s+BY|SKIP|LIMIT)\b", re.IGNORECASE)
 _ALIAS = re.compile(r"\s+AS\s+[A-Za-z_][A-Za-z0-9_]*\s*$", re.IGNORECASE)
 _RENAME = re.compile(
-    r"(?:\bcollect\s*\(\s*(?:DISTINCT\s+)?)?\b([A-Za-z_][A-Za-z0-9_]*)\s*\)?\s+AS\s+([A-Za-z_][A-Za-z0-9_]*)",
+    (
+        r"(?:\bcollect\s*\(\s*(?:DISTINCT\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*\)|"
+        r"(?<![.\w])([A-Za-z_][A-Za-z0-9_]*))\s+AS\s+([A-Za-z_][A-Za-z0-9_]*)"
+    ),
     re.IGNORECASE,
 )
 # every property at once: m {.*} or properties(m) (embeddings included)
@@ -165,7 +168,8 @@ def _whole_entity_errors(masked: str) -> list[str]:
     # follow renames: WITH m AS x, collect(m) AS models
     renamed = True
     while renamed:
-        new = {alias for source, alias in _RENAME.findall(masked) if source in entities} - entities
+        new = {alias for collected, source, alias in _RENAME.findall(masked) if (collected or source) in entities}
+        new -= entities
         entities |= new
         renamed = bool(new)
     errors = []
