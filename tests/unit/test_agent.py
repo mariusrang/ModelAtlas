@@ -167,3 +167,13 @@ def test_a_model_id_from_the_question_is_not_a_hallucination(make_agent):
     )
     result = agent.ask("What is the license of foo/SuperGPT-900B?")
     assert not any("hallucination" in w for w in result["warnings"])
+
+
+def test_a_shorter_invented_id_is_still_flagged(make_agent):
+    # the question's id must match exactly: a substring of it is another, invented model
+    agent, _ = make_agent(
+        chat=[call("model_details", model_id="foo/SuperGPT-900B")],
+        answers=[{"answer": "foo/SuperGPT-900 is available.", "fact_ids": [], "in_scope": True}],
+    )
+    result = agent.ask("What is the license of foo/SuperGPT-900B?")
+    assert any("foo/SuperGPT-900 is not a model" in w for w in result["warnings"])

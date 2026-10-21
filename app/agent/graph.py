@@ -302,7 +302,8 @@ class ModelAtlasAgent:
         Ids the user wrote in the question are not hallucinations: "foo/SuperGPT-900B is not in the
         graph" repeats the question.
         """
-        known = " ".join(f.statement for f in facts) + " " + question
+        # compare whole ids, not substrings: "foo/SuperGPT-900" is not "foo/SuperGPT-900B"
+        known = set(_MODEL_ID.findall(" ".join(f.statement for f in facts) + " " + question))
         mentioned = [
             m for m in dict.fromkeys(_MODEL_ID.findall(text)) if all(re.search("[A-Za-z]", p) for p in m.split("/"))
         ]
