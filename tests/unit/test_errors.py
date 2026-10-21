@@ -9,6 +9,7 @@ from app.dependencies import require_admin_key
 from app.errors import (
     BadRequestError,
     NotFoundError,
+    QueryTimeoutError,
     ServiceUnavailableError,
     UnauthorizedError,
     register_error_handlers,
@@ -26,6 +27,7 @@ def fixture_error_app() -> TestClient:
             "404": NotFoundError("model not found"),
             "400": BadRequestError("depth too big"),
             "503": ServiceUnavailableError("neo4j down"),
+            "504": QueryTimeoutError("query stopped after 10 s"),
         }
         raise errors[kind]
 
@@ -43,7 +45,12 @@ def fixture_error_app() -> TestClient:
 
 @pytest.mark.parametrize(
     ("kind", "status", "code"),
-    [("404", 404, "not_found"), ("400", 400, "bad_request"), ("503", 503, "service_unavailable")],
+    [
+        ("404", 404, "not_found"),
+        ("400", 400, "bad_request"),
+        ("503", 503, "service_unavailable"),
+        ("504", 504, "query_timeout"),
+    ],
 )
 def test_app_errors_map_to_http_codes(error_app, kind, status, code):
     response = error_app.get(f"/boom/{kind}")

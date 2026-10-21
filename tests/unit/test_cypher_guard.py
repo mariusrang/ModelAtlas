@@ -110,7 +110,7 @@ def test_empty_and_non_read_queries():
 
 
 def test_a_quote_inside_backticks_cannot_hide_a_write():
-    # Ylias's bypass from the review of #13
+    # a quote inside backticks used to open a fake string that hid DELETE from the keyword check
     result = check_cypher("MATCH (`x'`:Model) DETACH DELETE `x'` RETURN 1")
     assert not result.passed
     assert any("DELETE" in e for e in result.errors)
@@ -124,3 +124,33 @@ def test_backtick_names_are_still_checked_against_the_schema():
 def test_unlisted_property_gets_a_hint():
     errors = check_cypher("MATCH (m:Model) WHERE m.unlisted = false RETURN count(m) AS n").errors
     assert any("WHERE NOT m:Unlisted" in e for e in errors)
+
+
+@pytest.mark.parametrize(
+    "cypher, ok",
+    [
+        ("MATCH (m:Model) RETURN m", False),
+        ("MATCH (m:Model) RETURN DISTINCT m AS model", False),
+        ("MATCH (m:Model)-[r:FINETUNED_FROM]->(p:Model) RETURN m.id AS id, r", False),
+        ("MATCH p = (m:Model)-[:FINETUNED_FROM*1..2]->(:Model) RETURN p", False),
+        ("MATCH (m:Model) RETURN collect(m) AS models", False),
+        ("MATCH (m:Model) RETURN *", False),
+        # ways around the rule found in review
+        ("MATCH (m:Model) WITH m AS x RETURN x LIMIT 5", False),
+        ("MATCH (m:Model) WITH m AS x WITH x AS y RETURN y", False),
+        ("MATCH (m:Model) WITH collect(m) AS models RETURN models", False),
+        ("MATCH (m:Model) WITH collect(DISTINCT m) AS models WITH models AS copies RETURN copies", False),
+        ("MATCH (m:Model) RETURN m {.*} AS model LIMIT 5", False),
+        ("MATCH (m:Model) RETURN properties(m) AS model LIMIT 5", False),
+        ("MATCH (m:Model) RETURN m {.id, .downloads} AS model LIMIT 5", True),
+        ("MATCH (m:Model) WITH m.id AS id RETURN id", True),
+        ("MATCH (m:Model) WITH count(m) AS n RETURN n", True),
+        ("MATCH (m:Model) WITH elementId(m) AS node_id RETURN node_id", True),
+        ("MATCH (m:Model) RETURN m.id AS model, m.downloads AS downloads ORDER BY downloads DESC", True),
+        ("MATCH (m:Model) RETURN count(m) AS models", True),
+        ("MATCH (m:Model) WITH m ORDER BY m.downloads DESC RETURN collect(m.id) AS ids", True),
+    ],
+)
+def test_whole_nodes_are_not_returned(cypher, ok):
+    # a Model node carries two 256-number embeddings: the prompt asks for plain values, the guard checks it
+    assert check_cypher(cypher).passed is ok, check_cypher(cypher).errors

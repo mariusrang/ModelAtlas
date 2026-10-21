@@ -7,7 +7,10 @@ session with a timeout, see text_to_cypher.py). Rules:
 2. read-only: no write or admin keyword, no procedure CALL (db.*, apoc.*, gds.*);
 3. schema allowlist: every label, relationship type and property must exist;
 4. every variable-length pattern has an upper bound <= MAX_TRAVERSAL_DEPTH;
-5. a LIMIT is always there, and never above the cap (we add or lower it).
+5. the final RETURN gives plain values (m.id AS model), not whole nodes, relationships or paths:
+   a node carries its 256-number embeddings, and the LLM only needs a few properties;
+6. a LIMIT is always there, and never above the cap (we add or lower it).
+Expensive plans (cartesian products, huge row estimates) are refused later, from EXPLAIN.
 
 Keywords are checked on a copy where string literals are blanked, so
 `WHERE m.id = 'delete-me'` is fine but `DETACH DELETE m` is not.
@@ -39,6 +42,21 @@ _REL_BLOCK = re.compile(r"\[([^\[\]]*)\]")
 _VAR_LENGTH = re.compile(r"\*\s*(\d*)\s*(\.\.\s*(\d*))?")
 _PROPERTY = re.compile(r"\b[A-Za-z_][A-Za-z0-9_]*\s*\.\s*([A-Za-z_][A-Za-z0-9_]*)")
 _LIMIT = re.compile(r"\bLIMIT\s+(\d+)\s*$", re.IGNORECASE)
+_NODE_VAR = re.compile(r"\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*[:{)]")
+_REL_VAR = re.compile(r"\[\s*([A-Za-z_][A-Za-z0-9_]*)\s*[:*{\]]")
+_PATH_VAR = re.compile(r"\b([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(?:shortestPath|allShortestPaths)?\s*\(", re.IGNORECASE)
+_RETURN_END = re.compile(r"\b(ORDER\s+BY|SKIP|LIMIT)\b", re.IGNORECASE)
+_ALIAS = re.compile(r"\s+AS\s+[A-Za-z_][A-Za-z0-9_]*\s*$", re.IGNORECASE)
+_RENAME = re.compile(
+    (
+        r"(?:\bcollect\s*\(\s*(?:DISTINCT\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*\)|"
+        r"(?<![.\w])([A-Za-z_][A-Za-z0-9_]*))\s+AS\s+([A-Za-z_][A-Za-z0-9_]*)"
+    ),
+    re.IGNORECASE,
+)
+# every property at once: m {.*} or properties(m) (embeddings included)
+_ALL_PROPERTIES = re.compile(r"\{\s*\.\s*\*|\bproperties\s*\(", re.IGNORECASE)
+_COLLECT_VAR = re.compile(r"^collect\s*\(\s*(?:DISTINCT\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*\)$", re.IGNORECASE)
 
 
 @dataclass
@@ -59,8 +77,8 @@ def _mask_strings(cypher: str) -> str:
     """Blank string literals and odd `quoted names`, in one left-to-right scan.
 
     One scan (not two regexes) so a quote inside backticks can't open a fake string
-    that hides the rest of the query: MATCH (`x'`:Model) DETACH DELETE `x'` (found by
-    Ylias in the review of #13). A backtick name that is a plain identifier keeps its
+    that hides the rest of the query: MATCH (`x'`:Model) DETACH DELETE `x'`.
+    A backtick name that is a plain identifier keeps its
     text, so `Model` is still checked against the schema.
     """
     out, i = [], 0
@@ -125,6 +143,47 @@ def _depth_errors(masked: str, max_depth: int) -> list[str]:
     return errors
 
 
+def _split_top_level(text: str) -> list[str]:
+    items, depth, current = [], 0, []
+    for char in text:
+        depth += char in "([{"
+        depth -= char in ")]}"
+        if char == "," and depth == 0:
+            items.append("".join(current))
+            current = []
+        else:
+            current.append(char)
+    return items + ["".join(current)]
+
+
+def _whole_entity_errors(masked: str) -> list[str]:
+    """The final RETURN must not give back whole nodes, relationships or paths (or RETURN *)."""
+    returns = list(_RETURN.finditer(masked))
+    if not returns:
+        return []
+    clause = masked[returns[-1].end() :]
+    end = _RETURN_END.search(clause)
+    clause = clause[: end.start()] if end else clause
+    entities = set(_NODE_VAR.findall(masked)) | set(_REL_VAR.findall(masked)) | set(_PATH_VAR.findall(masked))
+    # follow renames: WITH m AS x, collect(m) AS models
+    renamed = True
+    while renamed:
+        new = {alias for collected, source, alias in _RENAME.findall(masked) if (collected or source) in entities}
+        new -= entities
+        entities |= new
+        renamed = bool(new)
+    errors = []
+    if _ALL_PROPERTIES.search(masked):
+        errors.append("m {.*} and properties(m) return every property (embeddings too): list the ones you need")
+    for item in _split_top_level(clause):
+        expression = _ALIAS.sub("", re.sub(r"^\s*DISTINCT\s+", "", item, flags=re.IGNORECASE)).strip()
+        collected = _COLLECT_VAR.match(expression)
+        name = collected.group(1) if collected else expression
+        if name == "*" or name in entities:
+            errors.append(f"RETURN {expression} gives whole nodes: return properties instead (e.g. m.id AS model)")
+    return errors
+
+
 def check_cypher(cypher: str, max_depth: int = 6, max_limit: int = MAX_LIMIT) -> GuardResult:
     """Run every static rule; return the query to execute and the list of problems."""
     text = _strip_fences(cypher)
@@ -147,6 +206,7 @@ def check_cypher(cypher: str, max_depth: int = 6, max_limit: int = MAX_LIMIT) ->
         result.errors.append("the query must RETURN something")
     result.errors += _schema_errors(masked)
     result.errors += _depth_errors(masked, max_depth)
+    result.errors += _whole_entity_errors(masked)
     if result.errors:
         return result
 
