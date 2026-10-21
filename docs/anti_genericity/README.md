@@ -25,7 +25,7 @@ what we built. Every number below comes from our reports: [`data_profile.md`](..
 - The raw answers are kept **unchanged** in [`generic_schema_1.md`](generic_schema_1.md) and
   [`generic_schema_2.md`](generic_schema_2.md). We call them G1 and G2.
 
-Honest first remark: both answers are good. Both make `License` a node with rules, both allow several parents for
+First remark: both answers are good. Both make `License` a node with rules, both allow several parents for
 a merge, both have a stub for missing parents. The differences are in the details that only appear once you look
 at the real data.
 
