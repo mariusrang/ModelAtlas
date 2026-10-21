@@ -15,8 +15,10 @@ allowed, are in tests/unit/test_input_guard.py.
 import re
 
 _POLITE = (
-    r"(?:please[\s,]+|kindly\s+|(?:can|could|would|will)\s+you[\s,]+(?:please[\s,]+|kindly\s+)?|i\s+want\s+you\s+to\s+|"
-    r"(?:peux|pourrais)[- ]tu\s+|(?:pouvez|pourriez)[- ]vous\s+|merci\s+de\s+|veuillez\s+)*"
+    r"(?:please[\s,]+|kindly\s+|(?:can|could|would|will)\s+you[\s,]+(?:please[\s,]+|kindly\s+)?|"
+    r"i\s+(?:want|need)\s+you\s+to\s+|i(?:'d|\s+would)\s+like\s+you\s+to\s+|"
+    r"(?:peux|pourrais)[- ]tu\s+|(?:pouvez|pourriez)[- ]vous\s+|merci\s+de\s+|veuillez\s+|"
+    r"je\s+(?:veux|voudrais)\s+que\s+(?:tu|vous)\s+|j'aimerais\s+que\s+(?:tu|vous)\s+)*"
 )
 _WRITE_VERBS = (
     r"delete|drop|wipe(?:\s+out)?|erase|truncate|destroy|overwrite|create|insert|update|merge|add|set|modify|"
@@ -68,7 +70,8 @@ _SECRET_WORDS = re.compile(
 
 
 def _sentences(question: str) -> list[str]:
-    return [s.strip() for s in re.split(r"[.!?;:\n]+", question) if s.strip()]
+    # punctuation ends a sentence only before a space or the end: "org.model/Qwen" stays one id
+    return [s.strip() for s in re.split(r"[.!?;:]+(?=\s|$)|\n+", question) if s.strip()]
 
 
 def is_write_order(question: str) -> bool:
