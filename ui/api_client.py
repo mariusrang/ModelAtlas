@@ -12,7 +12,7 @@ import requests
 
 API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000")
 TIMEOUT_SECONDS = 30
-AGENT_TIMEOUT_SECONDS = 300  # the local LLM can take a while on a laptop CPU
+AGENT_TIMEOUT_SECONDS = 900  # several LLM calls per question, each up to 300 s on a laptop CPU
 
 
 class ApiError(Exception):
