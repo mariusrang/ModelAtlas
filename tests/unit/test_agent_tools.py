@@ -37,7 +37,7 @@ def test_every_tool_has_a_spec_and_a_handler(tools):
         ("similar_models", {"model_id": "acme/chat"}, Evidence.DERIVED),
         ("predicted_parents", {"model_id": "carl/lora"}, Evidence.HYPOTHESIS),
         ("influential_models", {}, Evidence.DERIVED),
-        ("text_to_cypher", {"question": "most downloaded models"}, Evidence.DERIVED),
+        ("text_to_cypher", {"question": "most downloaded models"}, Evidence.HYPOTHESIS),
     ],
 )
 def test_tools_return_labelled_facts(tools, name, arguments, evidence):

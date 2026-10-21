@@ -115,6 +115,15 @@ def test_score_confidence_rules():
     assert score_confidence([], [], [], [], [])[1] == "no_answer"
 
 
+def test_llm_written_query_results_are_hypotheses():
+    # a valid, safe query can still answer another question (wrong publisher counts in the agent evaluation)
+    facts = [Fact('query result: {"models": 1737}', Evidence.HYPOTHESIS, "text_to_cypher")]
+    steps = [{"tool": "text_to_cypher", "success": True}]
+    confidence, _, reasons = score_confidence(facts, [1], steps, [{"stage": "ok"}], [])
+    assert confidence <= 0.6
+    assert any("LLM-written query" in r for r in reasons)
+
+
 def test_no_tool_and_no_fact_is_out_of_scope_even_if_the_llm_says_in_scope(make_agent):
     agent, _ = make_agent(answers=[{"answer": "No relevant facts.", "fact_ids": [], "in_scope": True}])
     assert agent.ask("What is the best pizza in Naples?")["status"] == "out_of_scope"
@@ -149,3 +158,12 @@ def test_json_fields_copied_into_the_text_are_removed(make_agent):
 def test_out_of_scope_answer_is_our_own_sentence(make_agent):
     agent, _ = make_agent(answers=[{"answer": "Pizza Margherita!", "fact_ids": [], "in_scope": False}])
     assert "modèles d'IA" in agent.ask("Quelle est la meilleure pizza de Naples ?")["answer"]
+
+
+def test_a_model_id_from_the_question_is_not_a_hallucination(make_agent):
+    agent, _ = make_agent(
+        chat=[call("model_details", model_id="foo/SuperGPT-900B")],
+        answers=[{"answer": "foo/SuperGPT-900B is not in the graph.", "fact_ids": [], "in_scope": True}],
+    )
+    result = agent.ask("What is the license of foo/SuperGPT-900B?")
+    assert not any("hallucination" in w for w in result["warnings"])
