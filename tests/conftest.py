@@ -31,6 +31,10 @@ class FakeNeo4jClient:
         self.calls.append((cypher, params or {}))
         return self.rows
 
+    def explain(self, cypher: str, params=None):
+        self.calls.append((f"EXPLAIN {cypher}", params or {}))
+        return {"operators": ["ProduceResults"], "estimated_rows": 1.0}
+
     def close(self) -> None:
         self.closed = True
 
