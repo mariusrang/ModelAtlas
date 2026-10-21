@@ -18,7 +18,8 @@ class Settings(BaseSettings):
     # Neo4j
     neo4j_uri: str = "bolt://localhost:7687"
     neo4j_user: str = "neo4j"
-    neo4j_password: SecretStr = SecretStr("change-me-please")
+    # no default password in the code: it must come from .env (see .env.example)
+    neo4j_password: SecretStr = SecretStr("")
     neo4j_database: str = "neo4j"
 
     # API
@@ -33,7 +34,8 @@ class Settings(BaseSettings):
     llm_provider: str = "ollama"
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "qwen2.5:7b-instruct"
-    llm_timeout_seconds: float = 120.0
+    # per LLM call; 120 s was too short on a laptop CPU for long planning rounds (agent evaluation)
+    llm_timeout_seconds: float = 300.0
 
 
 @lru_cache

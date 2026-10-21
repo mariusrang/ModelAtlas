@@ -128,9 +128,13 @@ def score_confidence(facts: list[Fact], cited: list[int], steps: list[dict], cyp
     if unknown:
         confidence -= 0.25 * len(unknown)
         reasons.append(f"{len(unknown)} model id(s) in the answer are not in the graph")
-    if any(facts[i - 1].evidence == Evidence.HYPOTHESIS for i in cited):
+    guesses = {facts[i - 1].source for i in cited if facts[i - 1].evidence == Evidence.HYPOTHESIS}
+    if guesses:
         confidence = min(confidence, 0.6)
-        reasons.append("relies on a machine-learning guess (HYPOTHESIS)")
+        if "text_to_cypher" in guesses:
+            reasons.append("relies on the result of an LLM-written query (HYPOTHESIS: check the query shown)")
+        if guesses - {"text_to_cypher"}:
+            reasons.append("relies on a machine-learning guess (HYPOTHESIS)")
     return confidence, "answered", reasons
 
 
@@ -274,7 +278,7 @@ class ModelAtlasAgent:
                 cited.append(raw)
             else:
                 warnings.append(f"the answer cited fact [{raw}], which does not exist")
-        unknown = self.unknown_models(text, facts)
+        unknown = self.unknown_models(text, facts, state["question"])
         warnings += [f"{m} is not a model of the graph (possible hallucination)" for m in unknown]
 
         confidence, status, reasons = score_confidence(facts, cited, steps, cypher, unknown)
@@ -292,9 +296,14 @@ class ModelAtlasAgent:
             }
         }
 
-    def unknown_models(self, text: str, facts: list[Fact]) -> list[str]:
-        """Model ids written in the answer that no tool returned and that are not in the graph."""
-        known = " ".join(f.statement for f in facts)
+    def unknown_models(self, text: str, facts: list[Fact], question: str = "") -> list[str]:
+        """Model ids written in the answer that no tool returned and that are not in the graph.
+
+        Ids the user wrote in the question are not hallucinations: "foo/SuperGPT-900B is not in the
+        graph" repeats the question.
+        """
+        # compare whole ids, not substrings: "foo/SuperGPT-900" is not "foo/SuperGPT-900B"
+        known = set(_MODEL_ID.findall(" ".join(f.statement for f in facts) + " " + question))
         mentioned = [
             m for m in dict.fromkeys(_MODEL_ID.findall(text)) if all(re.search("[A-Za-z]", p) for p in m.split("/"))
         ]

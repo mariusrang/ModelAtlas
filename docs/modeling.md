@@ -22,7 +22,7 @@ and what can stay a property (something we only read or filter on).
 
 | Concept | Choice | Why |
 | --- | --- | --- |
-| License | **node** (78 of them) | 115k models share 78 licenses, and the rules (family, commercial use) live on the license. As a property we would copy the rules 115k times and could not update them in one place (`POST /admin/license-rules/reload` updates 78 nodes). Datasets point to the same License nodes, so one rule covers models and data. |
+| License | **node** (80 in the full graph) | 115k models and 7k datasets share 80 licenses, and the rules (family, commercial use) live on the license. As a property we would copy the rules 115k times and could not update them in one place (`POST /admin/license-rules/reload` updates the 80 nodes from the 82 rules of `config/licenses.toml`). Datasets point to the same License nodes, so one rule covers models and data. |
 | Organization | **node** | "who builds on X" groups models by publisher; as a string property it would be a full scan + group by. |
 | Dataset | **node** (15.5k) | shared by many models, and it has its own facts from the second source (license, languages, size). |
 | Paper | **node** (9.4k) | shared, and "models citing the same paper" is a one-hop query. |
@@ -83,8 +83,17 @@ by forgetting a `WHERE`. A user who wants the guesses asks for them explicitly
 - every relationship has a `source` property: `card_metadata` (model cards) or `dataset_card`;
 - `Dataset.listed = false` marks datasets cited by models but with no public card (their license is unknown);
 - the API adds an `evidence` label to each answer: `VERIFIED` (read from a card), `DERIVED` (our rule
-  applied to verified facts, like the license verdict). Predictions from the ML and agent steps will be
-  stored on separate relationship types with a score, never mixed with declared edges.
+  applied to verified facts, like the license verdict) or `HYPOTHESIS` (a guess with a score). The ML
+  predictions are stored on their own relationship type, `PREDICTED_PARENT {score, rank, model_version}`,
+  never mixed with the declared lineage, and the agent marks the results of LLM-written Cypher as
+  `HYPOTHESIS` too, because a valid query can still answer a slightly different question.
+
+Why a label for missing models but a property for missing datasets? Lineage queries walk through models
+all the time and must often skip the missing ones (`WHERE NOT m:Unlisted`): a label is checked in the node
+record itself and the planner can use it, and every algorithm projection (GDS) can include or exclude it.
+Datasets are never traversed in a long path: we only read `listed` when we show a dataset or check a
+training-data license, so a boolean property is enough and keeps the Dataset node simple. In the full graph,
+15,495 datasets are cited and 9,451 have a card, so 6,044 have `listed = false`.
 
 ## 8. Alternatives we rejected
 
@@ -92,7 +101,7 @@ by forgetting a `WHERE`. A user who wants the guesses asks for them explicitly
 | --- | --- |
 | One `DERIVED_FROM` relationship with a `kind` property | type filtering during expansion is cheaper and clearer (section 3) |
 | License as a string property on Model | rules duplicated 115k times, no shared node with datasets |
-| Keep all 861k models | 66% have 0 downloads and ~105k are auto-generated spam (`blockassist` swarms); scope rule in `config/scope.toml` keeps 150k real models + their ancestors |
+| Keep all 861k models | 66% have 0 downloads and ~105k are auto-generated spam (`blockassist` swarms); scope rule in `config/scope.toml` keeps 146k real models; with their ancestors and the `Unlisted` parents the graph has 156,071 Model nodes |
 | Separate `User` and `Organization` labels | the dump does not say whether an author is a person or a company, so we would be guessing |
 | Store the tag list as-is | not indexable, mixes unrelated concepts (section 2) |
 | Recompute lineage metrics in Cypher on each request | full traversal per page view (section 5) |
@@ -101,8 +110,8 @@ by forgetting a `WHERE`. A user who wants the guesses asks for them explicitly
 
 - Licenses are **self-declared** by uploaders and can be wrong; the license check is informational.
 - Parameter counts are guessed from the model name (`params_estimated = true`).
-- Only 60.7% of the cited dataset ids (9,400 of 15,495) match a dataset card: some datasets were
-  renamed (e.g. `squad` became `rajpurkar/squad`), others are private or deleted. The other 39.3% stay
+- Only 61.0% of the cited dataset ids (9,451 of 15,495) match a dataset card: some datasets were
+  renamed (e.g. `squad` became `rajpurkar/squad`), others are private or deleted. The other 39.0% stay
   `Dataset {listed: false}` with an unknown license (`reports/etl_report.md`).
 - Many cards declare no parent at all (e.g. `mistralai/Mistral-7B-Instruct-v0.2` does not cite
   `Mistral-7B-v0.2`): that is the gap the link-prediction step fills, as `PREDICTED_PARENT` hypotheses kept apart from

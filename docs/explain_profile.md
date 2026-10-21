@@ -5,7 +5,7 @@ and the full local graph: **156,611 Model nodes**, including **6,105 Unlisted no
 Neo4j runs in Docker Desktop with a 2 GB heap and 2 GB page cache.
 
 Data: the model_cards dump is at commit `ce0b4cd50b6253d526765077de9e8d95e743f086`.
-It is newer than `99b6ce9d9d47f796700745ed9630556c91c00439`, pinned by PR #5
+It is newer than `99b6ce9d9d47f796700745ed9630556c91c00439`, the commit pinned
 in `config/sources.toml`. This explains the difference from the reference load
 report on main: 156,611 versus 156,071 Model nodes, and 6,105 versus 6,138 Unlisted nodes.
 
@@ -224,10 +224,10 @@ query uses that index: PROFILE is how we check the actual choice.
 | `model_created` | Date filters for families and a temporal ML split |
 | `model_descendants` | Ranking model families by precomputed descendant count |
 | `license_family` | Intended for license-family grouping or filtering |
-| `model_search` (fulltext) | Search bar and planned agent entity resolution |
+| `model_search` (fulltext) | Search bar and the agent's `search_models` tool |
 | `model_author` (temporary) | Direct author-property equality; tested in sections 1 and 2 |
 
-Some entries support planned features. For example, the current license-check
+Some entries are not used by the plans captured here. For example, the current license-check
 query reaches License nodes through relationships and reads `family`; that read
 alone does not use `license_family` as a seek. The created-date and likes indexes
 also should not be described as used by the plans captured here.
@@ -260,7 +260,6 @@ The author lookup without a Model.author range index is also timed 30 times in
 That experiment returns model ids and compares a property scan with an indexed
 Organization lookup plus PUBLISHED_BY; the count query here isolates adding an
 index on Model.author. Their latency numbers therefore should not be compared directly.
-The relative link becomes available when PR #7 is merged.
 
 ## Reproducing the evidence
 

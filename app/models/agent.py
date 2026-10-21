@@ -22,7 +22,9 @@ class AgentFact(BaseModel):
 
     id: int
     statement: str
-    evidence: Evidence = Field(description="VERIFIED (card), DERIVED (our rule / validated query), HYPOTHESIS (ML)")
+    evidence: Evidence = Field(
+        description="VERIFIED (card), DERIVED (our rule), HYPOTHESIS (ML guess or LLM-written query)"
+    )
     source: str = Field(description="Tool that produced it")
     cited: bool = Field(default=False, description="True when the answer uses this fact")
 

@@ -305,8 +305,8 @@ class AgentTools:
             return ToolOutput(content, success=False, cypher=outcome)
         rows = outcome.rows[:MAX_FACTS_PER_CALL]
         facts = [
-            Fact(f"query result: {json.dumps(row, default=str)}", Evidence.DERIVED, "text_to_cypher") for row in rows
+            Fact(f"query result: {json.dumps(row, default=str)}", Evidence.HYPOTHESIS, "text_to_cypher") for row in rows
         ]
         if not rows:
-            facts = [Fact(f"the query returned no row for: {question}", Evidence.DERIVED, "text_to_cypher")]
+            facts = [Fact(f"the query returned no row for: {question}", Evidence.HYPOTHESIS, "text_to_cypher")]
         return ToolOutput(json.dumps({"rows": rows}, default=str), facts, cypher=outcome)

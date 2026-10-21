@@ -76,7 +76,7 @@ class NameIndex:
 
         `allowed(row)` filters candidates (e.g. created before the child). It is applied
         BEFORE the `max_posting` cap, so newer popular models can't push an older parent
-        out of the list (found by Lucas in the review of #12).
+        out of the list.
         A candidate with exactly the child's base name is always kept first.
         """
         scores: defaultdict = defaultdict(float)
