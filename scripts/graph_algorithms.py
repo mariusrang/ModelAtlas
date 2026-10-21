@@ -188,7 +188,7 @@ RETURN a.id AS model_a, b.id AS model_b, round(s.score, 3) AS score
 ORDER BY s.score DESC, a.downloads + b.downloads DESC LIMIT 10
 """
 # How many models Node Similarity can compare: degreeCutoff 2 skips the ones with a
-# single dataset/paper (asked by Ylias in the review of #10).
+# single dataset/paper.
 SIMILARITY_COVERAGE = """
 MATCH (m:Model)
 WITH COUNT { (m)-[:TRAINED_ON|CITES]->() } AS features
