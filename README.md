@@ -3,6 +3,7 @@
 [![lint](https://github.com/mariusrang/ModelAtlas/actions/workflows/lint.yml/badge.svg)](https://github.com/mariusrang/ModelAtlas/actions/workflows/lint.yml)
 [![tests](https://github.com/mariusrang/ModelAtlas/actions/workflows/test.yml/badge.svg)](https://github.com/mariusrang/ModelAtlas/actions/workflows/test.yml)
 [![docker](https://github.com/mariusrang/ModelAtlas/actions/workflows/docker.yml/badge.svg)](https://github.com/mariusrang/ModelAtlas/actions/workflows/docker.yml)
+[![coverage](https://codecov.io/gh/mariusrang/ModelAtlas/graph/badge.svg)](https://codecov.io/gh/mariusrang/ModelAtlas)
 ![pylint](https://img.shields.io/badge/pylint-10.00-brightgreen)
 ![python](https://img.shields.io/badge/python-3.11%2B-blue)
 
@@ -488,7 +489,7 @@ Counted on `main` after the final PRs #17 to #20 (`git shortlog -sn --no-merges 
 
 | Member | Commits | Share | PRs opened | Reviews given (PRs) |
 | --- | ---: | ---: | --- | --- |
-| Marius Rang | 106 | 59 % | #1 #2 #3 #4 #5 #9 #10 #12 #13 #14 #17 | #6 #7 #8 #11 #15 #16 #18 #19 #20 |
+| Marius Rang | 107 | 59 % | #1 #2 #3 #4 #5 #9 #10 #12 #13 #14 #17 | #6 #7 #8 #11 #15 #16 #18 #19 #20 |
 | Ylias Guetari | 39 | 22 % | #6 #16 #20 | #5 #7 #9 #10 #13 #14 #17 #18 #19 |
 | Lucas Magret Delord | 35 | 19 % | #7 #8 #11 #15 #18 #19 | #6 #12 #17 #20 |
 
