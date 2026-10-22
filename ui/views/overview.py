@@ -11,7 +11,8 @@ from ui.data import fetch
 CARDS = [
     (
         "/license",
-        "⚖️ Can I ship it?",
+        "01 · LICENSES",
+        "Can I ship it?",
         (
             "Checks the license of a model <b>and of every ancestor and training dataset</b>. A fine-tune can't "
             "drop its parent's restrictions."
@@ -19,7 +20,8 @@ CARDS = [
     ),
     (
         "/model",
-        "🌳 Where does it come from?",
+        "02 · LINEAGE",
+        "Where does it come from?",
         (
             "Family tree up to the foundation model, derived models, graph analytics and the parent our ML model "
             "guesses when the card says nothing."
@@ -27,7 +29,8 @@ CARDS = [
     ),
     (
         "/ask",
-        "🤖 Just ask",
+        "03 · AGENT",
+        "Just ask",
         "A local LLM agent that calls graph tools, cites every fact it uses and refuses unsafe requests.",
     ),
 ]
@@ -41,10 +44,11 @@ def hero() -> None:
         "licenses, training datasets and papers. Built for one question companies ask every day: "
         "*which open model can we actually use, and why?*"
     )
-    for col, (url, title, text) in zip(st.columns(3), CARDS):
+    for col, (url, eyebrow, title, text) in zip(st.columns(3), CARDS):
         col.markdown(
             f'<a href="{url}" target="_self" style="text-decoration:none;color:inherit">'
-            f'<div class="ma-card"><h4>{title}</h4><div class="ma-muted">{text}</div></div></a>',
+            f'<div class="ma-card"><div class="ma-eyebrow">{eyebrow}</div><h4>{title}</h4>'
+            f'<div class="ma-muted">{text}</div></div></a>',
             unsafe_allow_html=True,
         )
 

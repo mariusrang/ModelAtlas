@@ -12,6 +12,7 @@ from ui.api_client import ApiClient
 from ui.components import inject_css
 
 PAGES = Path(__file__).parent / "views"  # not "pages": Streamlit would build its own menu from it
+ASSETS = Path(__file__).parent / "assets"
 REPO_URL = "https://github.com/mariusrang/ModelAtlas"
 
 
@@ -31,6 +32,7 @@ def main() -> None:
     """Build the navigation and run the selected page."""
     st.set_page_config(page_title="ModelAtlas", page_icon=":material/hub:", layout="wide")
     inject_css()
+    st.logo(str(ASSETS / "logo.svg"), size="large", icon_image=str(ASSETS / "mark.svg"))
     pages = {
         "Explore": [
             st.Page(PAGES / "overview.py", title="Overview", icon=":material/hub:", url_path="overview", default=True),
