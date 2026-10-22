@@ -16,12 +16,24 @@ from ui.data import fetch
 
 CSS = """
 <style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
+.stApp *:not([data-testid="stIconMaterial"]):not(code):not(pre):not(code *) {font-family:'IBM Plex Sans', sans-serif;}
+code, pre, .stCode {font-family:'IBM Plex Mono', monospace !important;}
 .block-container {padding-top: 2rem;}
-.ma-badge {display:inline-block; padding:0.1rem 0.55rem; border-radius:999px; font-size:0.75rem;
-  font-weight:600; letter-spacing:0.02em; margin-right:0.3rem; border:1px solid transparent;}
-.ma-verified {background:rgba(43,138,62,0.14); color:#2b8a3e; border-color:rgba(43,138,62,0.35);}
-.ma-derived {background:rgba(59,91,219,0.12); color:#3b5bdb; border-color:rgba(59,91,219,0.35);}
-.ma-hypothesis {background:rgba(230,119,0,0.14); color:#d9480f; border-color:rgba(230,119,0,0.4);}
+h1 {font-weight:700 !important; letter-spacing:-0.02em; color:#14213D;}
+h1::after {content:""; display:block; width:56px; height:4px; margin-top:0.45rem; border-radius:2px; background:#D35F2C;}
+h2, h3 {font-weight:600 !important; letter-spacing:-0.01em; color:#14213D;}
+[data-testid="stSidebar"] {border-right:1px solid #E2DDD1;}
+[data-testid="stMetricValue"] {font-weight:600; color:#14213D;}
+[data-testid="stMetricLabel"] {color:#5B6474;}
+[data-testid="stExpander"] details {border-radius:12px; border-color:#E2DDD1; background:#FFFFFF;}
+[data-testid="stChatMessage"] {background:#FFFFFF; border:1px solid #ECE8DE; border-radius:14px;}
+.ma-badge {display:inline-block; padding:0.1rem 0.55rem; border-radius:6px; font-size:0.72rem;
+  font-family:'IBM Plex Mono', monospace; font-weight:500; letter-spacing:0.04em; margin-right:0.3rem;
+  border:1px solid transparent;}
+.ma-verified {background:rgba(47,125,85,0.12); color:#2F7D55; border-color:rgba(47,125,85,0.35);}
+.ma-derived {background:rgba(31,58,107,0.10); color:#1F3A6B; border-color:rgba(31,58,107,0.30);}
+.ma-hypothesis {background:rgba(211,95,44,0.12); color:#B04A1B; border-color:rgba(211,95,44,0.40);}
 .ma-neutral {background:rgba(134,142,150,0.14); color:#5c636a; border-color:rgba(134,142,150,0.35);}
 .ma-verdict {border-radius:14px; padding:1.1rem 1.3rem; margin:0.4rem 0 1rem 0; border:1px solid;}
 .ma-verdict h3 {margin:0 0 0.3rem 0;}
@@ -29,9 +41,12 @@ CSS = """
 .ma-conditional {background:rgba(240,140,0,0.10); border-color:rgba(240,140,0,0.5);}
 .ma-review {background:rgba(59,91,219,0.08); border-color:rgba(59,91,219,0.45);}
 .ma-no {background:rgba(224,49,49,0.10); border-color:rgba(224,49,49,0.5);}
-.ma-card {border:1px solid rgba(134,142,150,0.3); border-radius:14px; padding:1rem 1.1rem; min-height:10.5rem;}
-.ma-card:hover {border-color:#3b5bdb; box-shadow:0 2px 12px rgba(59,91,219,0.12);}
-.ma-card h4 {margin:0 0 0.4rem 0;}
+.ma-card {background:#FFFFFF; border:1px solid #E2DDD1; border-left:4px solid #14213D; border-radius:12px;
+  padding:1rem 1.15rem; min-height:10.5rem; transition:border-color .15s, box-shadow .15s, transform .15s;}
+.ma-card:hover {border-left-color:#D35F2C; box-shadow:0 6px 18px rgba(20,33,61,0.08); transform:translateY(-2px);}
+.ma-card h4 {margin:0 0 0.4rem 0; color:#14213D;}
+.ma-eyebrow {font-family:'IBM Plex Mono', monospace; font-size:0.72rem; letter-spacing:0.12em; color:#D35F2C;
+  margin-bottom:0.35rem;}
 .ma-muted {color:rgba(120,128,136,1); font-size:0.85rem;}
 </style>
 """
@@ -58,7 +73,7 @@ STATUS_COLORS = {  # node fill in the license graph
 NODE_STYLE = (
     'node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=10, fillcolor="#f1f3f5", color="#adb5bd"];'
 )
-RELATION_COLORS = {"finetune": "#3b5bdb", "adapter": "#2b8a3e", "quantized": "#e8590c", "merge": "#9c36b5"}
+RELATION_COLORS = {"finetune": "#1F3A6B", "adapter": "#2F7D55", "quantized": "#D35F2C", "merge": "#7A5BA8"}
 TASKS = [
     "text-generation",
     "text-classification",
